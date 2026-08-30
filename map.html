@@ -1,0 +1,2518 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Спрос модели · Хамовники</title>
+    
+    <!-- MapLibre GL JS -->
+    <script src='https://unpkg.com/maplibre-gl@5.7.0/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@5.7.0/dist/maplibre-gl.css' rel='stylesheet' />
+    
+    <!-- MapLibre GL Compare (для сравнения карт) -->
+    <script src='https://unpkg.com/@maplibre/maplibre-gl-compare@0.5.0/dist/maplibre-gl-compare.js'></script>
+    <link href='https://unpkg.com/@maplibre/maplibre-gl-compare@0.5.0/dist/maplibre-gl-compare.css' rel='stylesheet' />
+    
+    
+    <style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+#map {
+    width: 100%;
+    height: 100vh;
+}
+
+/* Контейнер для поисковой панели */
+.address-search-container {
+    position: fixed;
+    top: 10px;
+    left: 60px;
+    z-index: 9999;
+    background: white;
+    padding: 10px;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    display: flex;
+    gap: 5px;
+}
+
+.address-search-input-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.address-search-input {
+    padding: 8px;
+    width: 300px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.address-search-input:focus {
+    outline: none;
+    border-color: #2c3e50;
+    box-shadow: 0 0 0 2px rgba(44, 62, 80, 0.1);
+}
+
+/* Контейнер для подсказок */
+.address-search-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 10000;
+    display: none;
+}
+
+.address-search-suggestions.visible {
+    display: block;
+}
+
+.address-search-suggestion-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    color: #333;
+    transition: background-color 0.2s;
+}
+
+.address-search-suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.address-search-suggestion-item:hover {
+    background-color: #f5f5f5;
+}
+
+.address-search-suggestion-item:active {
+    background-color: #e8e8e8;
+}
+
+.address-search-button {
+    padding: 8px 15px;
+    background: #2c3e50;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    transition: background 0.2s;
+}
+
+.address-search-button:hover {
+    background: #34495e;
+}
+
+.address-search-button:active {
+    background: #1a252f;
+}
+
+.search-marker {
+    width: 30px;
+    height: 30px;
+    border-radius: 50% 50% 50% 0;
+    background: #e31a1c;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transform: rotate(-45deg);
+    cursor: pointer;
+}
+
+.search-marker::after {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: white;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.legend {
+    position: fixed;
+    bottom: 30px;
+    right: 10px;
+    background: white;
+    padding: 15px;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    z-index: 1000;
+    font-size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    max-width: 320px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.legend-section {
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.legend-section:first-child {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: none;
+}
+
+.legend-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.legend-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.legend-title {
+    font-weight: bold;
+    font-size: 13px;
+    color: #2c3e50;
+    flex: 1;
+}
+
+/* Заголовок карты (отличается от названий слоев) */
+.legend-map-title {
+    font-weight: 600;
+    font-size: 16px;
+    color: #1a252f;
+    flex: 1;
+    padding: 4px 0 6px 0;
+    border-bottom: 2px solid #2c3e50;
+    margin-bottom: 0;
+    letter-spacing: 0.3px;
+}
+
+.legend-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 10px;
+}
+
+.legend-panel-header .legend-map-title {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.legend-panel-header.collapsed {
+    margin-bottom: 0;
+}
+
+.legend-panel-arrow {
+    font-size: 12px;
+    color: #2c3e50;
+    transition: transform 0.2s ease;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.legend-panel-header.collapsed .legend-panel-arrow {
+    transform: rotate(-90deg);
+}
+
+.legend-body.collapsed {
+    display: none;
+}
+
+/* Переключатель слоев */
+.layer-toggle {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    margin-left: 10px;
+}
+
+.layer-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.layer-toggle input:checked + .toggle-slider {
+    background-color: #2c3e50;
+}
+
+.layer-toggle input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+.layer-toggle input:focus + .toggle-slider {
+    box-shadow: 0 0 1px #2c3e50;
+}
+
+.legend-description {
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.legend-colorbar {
+    height: 20px;
+    width: 100%;
+    border: 1px solid #ccc;
+    margin: 8px 0;
+    border-radius: 2px;
+}
+
+.legend-values {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #666;
+    margin-top: 4px;
+}
+
+/* Компактный вид для одноцветных слоев */
+.legend-single-color {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.legend-color-indicator {
+    width: 20px;
+    height: 20px;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.legend-loader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 0;
+    color: #666;
+    font-size: 11px;
+}
+
+.legend-loader-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #e0e0e0;
+    border-top-color: #2c3e50;
+    border-radius: 50%;
+    animation: legend-spin 0.8s linear infinite;
+}
+
+@keyframes legend-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.legend-loader-text {
+    color: #666;
+    font-size: 11px;
+}
+
+.legend-instructions {
+    background: #ffffff;
+    padding: 0;
+    border-radius: 6px;
+    margin-top: 15px;
+    border: 2px solid #2c3e50;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.legend-instructions:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border-color: #34495e;
+}
+
+.legend-instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    padding: 10px 12px;
+    background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+    border-radius: 4px 4px 0 0;
+    transition: background 0.2s ease;
+}
+
+.legend-instructions-header:hover {
+    background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+}
+
+.legend-instructions-title {
+    font-weight: bold;
+    font-size: 12px;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.legend-instructions-title::before {
+    content: '💡';
+    font-size: 14px;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.legend-instructions-arrow {
+    font-size: 12px;
+    color: #ffffff;
+    transition: transform 0.2s ease;
+    font-weight: bold;
+}
+
+.legend-instructions-header.collapsed .legend-instructions-arrow {
+    transform: rotate(-90deg);
+}
+
+.legend-instructions-content {
+    padding: 12px;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.legend-instructions-content.collapsed {
+    display: none;
+}
+
+.legend-instructions-list {
+    font-size: 11px;
+    color: #555;
+    line-height: 1.6;
+    margin: 0;
+    padding-left: 18px;
+}
+
+.legend-instructions-list li {
+    margin-bottom: 4px;
+}
+
+/* Стили для попапов MapLibre GL JS */
+.maplibregl-popup {
+    max-width: 460px;
+    min-width: 280px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.maplibregl-popup-content {
+    padding: 16px 45px 16px 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    position: relative;
+    max-height: min(70vh, 560px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+}
+
+.maplibregl-popup-tip {
+    border-top-color: #ffffff;
+}
+
+.maplibregl-popup-close-button {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+    line-height: 28px;
+    color: #666;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 50%;
+    border: 1px solid #e0e0e0;
+    right: 10px;
+    top: 10px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    z-index: 10;
+}
+
+.maplibregl-popup-close-button:hover {
+    background: #f44336;
+    color: #ffffff;
+    border-color: #f44336;
+    transform: scale(1.1);
+}
+
+.maplibregl-popup-close-button:active {
+    transform: scale(0.95);
+}
+
+.popup-content {
+    margin: 0;
+}
+
+/* Опционально растягиваемый popup */
+.popup--resizable {
+    max-width: none;
+}
+
+.popup-shell--resizable {
+    resize: both;
+    min-width: 300px;
+    min-height: 180px;
+    max-width: min(92vw, 900px);
+    max-height: min(85vh, 760px);
+}
+
+.popup-content--resizable {
+    resize: none;
+    overflow: visible;
+    min-width: 0;
+    min-height: 0;
+    max-width: none;
+    max-height: none;
+}
+
+.popup-row {
+    display: grid;
+    grid-template-columns: minmax(130px, 42%) minmax(0, 58%);
+    column-gap: 12px;
+    align-items: start;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.popup-row:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.popup-label {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.popup-value {
+    color: #555;
+    font-size: 13px;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
+}
+
+.maplibregl-canvas-container.maplibregl-interactive {
+    cursor: default;
+}
+
+/* Контейнер для переключения провайдеров тайлов */
+.tile-providers-container {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.tile-provider-btn {
+    padding: 6px 12px;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    color: #555;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.tile-provider-btn:hover {
+    background: #e8e8e8;
+    border-color: #bbb;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tile-provider-btn.active {
+    background: #2c3e50;
+    color: white;
+    border-color: #2c3e50;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(44, 62, 80, 0.3);
+}
+
+.tile-provider-btn.active:hover {
+    background: #34495e;
+    border-color: #34495e;
+}
+
+.overlay-providers-container {
+    margin-top: 8px;
+    border-top: 1px dashed #d6dce1;
+    padding-top: 8px;
+}
+
+.overlay-control {
+    margin-bottom: 8px;
+}
+
+.overlay-control:last-child {
+    margin-bottom: 0;
+}
+
+.overlay-control-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #2c3e50;
+    margin-bottom: 4px;
+}
+
+.overlay-opacity-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.overlay-opacity-row input[type="range"] {
+    flex: 1;
+}
+
+.overlay-opacity-value {
+    min-width: 36px;
+    text-align: right;
+    font-size: 11px;
+    color: #666;
+}
+
+/* Стили для режима сравнения карт */
+.comparison-container {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.comparison-map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+#before {
+    z-index: 1;
+}
+
+#after {
+    z-index: 2;
+}
+
+/* Стили для слайдера сравнения (дополняют стили maplibre-gl-compare) */
+.maplibregl-compare {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #fff;
+    box-shadow: -2px 0 4px rgba(0, 0, 0, 0.3), 2px 0 4px rgba(0, 0, 0, 0.3);
+    cursor: ew-resize;
+    z-index: 10;
+}
+
+.maplibregl-compare::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    background: #fff;
+    border: 2px solid #2c3e50;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    cursor: grab;
+}
+
+.maplibregl-compare:active::before {
+    cursor: grabbing;
+}
+
+.maplibregl-compare::after {
+    content: '◄ ►';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #2c3e50;
+    font-size: 14px;
+    font-weight: bold;
+    pointer-events: none;
+}
+
+/* Overlay контейнер для маркеров поиска в режиме сравнения */
+.search-markers-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 20; /* Выше слайдера сравнения (z-index: 10) */
+}
+
+.search-marker-overlay {
+    position: absolute;
+    pointer-events: auto;
+    transform: translate(-50%, -100%);
+}
+
+.search-popup-overlay {
+    position: absolute;
+    pointer-events: auto;
+    transform: translate(-50%, -100%);
+    max-width: 350px;
+    min-width: 250px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.search-popup-overlay .popup-content {
+    padding: 16px 45px 16px 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    position: relative;
+    max-height: min(70vh, 560px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+}
+
+.search-popup-overlay .popup-close {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+    line-height: 28px;
+    color: #666;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 50%;
+    border: 1px solid #e0e0e0;
+    right: 10px;
+    top: 10px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    z-index: 10;
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+}
+
+.search-popup-overlay .popup-close:hover {
+    background: #f44336;
+    color: #ffffff;
+    border-color: #f44336;
+    transform: scale(1.1);
+}
+
+.search-popup-overlay .popup-close:active {
+    transform: scale(0.95);
+}
+
+/* Overlay контейнер для попапов слоев в режиме сравнения */
+.layer-popups-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 20; /* Выше слайдера сравнения (z-index: 10) */
+}
+
+.layer-popup-overlay {
+    position: absolute;
+    pointer-events: auto;
+    transform: translate(-50%, -100%);
+    max-width: 350px;
+    min-width: 250px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.layer-popup-overlay .popup-content {
+    padding: 16px 45px 16px 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    position: relative;
+    max-height: min(70vh, 560px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+}
+
+.layer-popup-overlay .popup-close {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+    line-height: 28px;
+    color: #666;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 50%;
+    border: 1px solid #e0e0e0;
+    right: 10px;
+    top: 10px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    z-index: 10;
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+}
+
+.layer-popup-overlay .popup-close:hover {
+    background: #f44336;
+    color: #ffffff;
+    border-color: #f44336;
+    transform: scale(1.1);
+}
+
+.layer-popup-overlay .popup-close:active {
+    transform: scale(0.95);
+}
+
+    </style>
+</head>
+<body>
+    <!-- Поисковая панель -->
+    <div class="address-search-container">
+        <div class="address-search-input-wrapper">
+            <input type="text" 
+                id="address-search" 
+                class="address-search-input"
+                placeholder="Название места…"
+                autocomplete="off">
+            <div id="address-search-suggestions" class="address-search-suggestions"></div>
+        </div>
+        <button onclick="searchAddress()" 
+            class="address-search-button">
+            Найти
+        </button>
+    </div>
+
+    <!-- Карта -->
+    <div id="map"></div>
+
+    <!-- Легенда -->
+    <div class="legend">
+        <div class="legend-panel-header" onclick="toggleLegendPanel()">
+            <div class="legend-map-title">Спрос модели · Хамовники</div>
+            <span class="legend-panel-arrow">▼</span>
+        </div>
+        <div class="legend-body">
+        <div class="legend-section">
+            <div class="legend-header">
+                <div class="legend-title">Население (точки домов)</div>
+                <label class="layer-toggle">
+                    <input type="checkbox" id="population-toggle" checked onchange="toggleLayer('population-layer', this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="legend-description">population</div>
+            <div class="legend-loader" id="population-loader">
+                <div class="legend-loader-spinner"></div>
+                <span class="legend-loader-text">Загрузка данных...</span>
+            </div>
+            <div class="legend-colorbar" id="population-colorbar" style="display: none;"></div>
+            <div class="legend-values" id="population-values" style="display: none;">
+                <span id="population-min">0</span>
+                <span id="population-max">0</span>
+            </div>
+        </div>
+        <div class="legend-section">
+            <div class="legend-header">
+                <div class="legend-title">Спрос модели</div>
+                <label class="layer-toggle">
+                    <input type="checkbox" id="parks-toggle" checked onchange="toggleLayer('parks-layer', this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="legend-description">park_demand</div>
+            <div class="legend-loader" id="parks-loader">
+                <div class="legend-loader-spinner"></div>
+                <span class="legend-loader-text">Загрузка данных...</span>
+            </div>
+            <div class="legend-colorbar" id="parks-colorbar" style="display: none;"></div>
+            <div class="legend-values" id="parks-values" style="display: none;">
+                <span id="parks-min">0</span>
+                <span id="parks-max">0</span>
+            </div>
+        </div>
+        </div>
+    </div>
+    
+    <script>
+        // =========================================================================
+        // Утилиты
+        // =========================================================================
+        
+        // Форматирование чисел
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'М';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'К';
+            }
+            return Math.round(num).toLocaleString('ru-RU');
+        }
+        
+        // Функция debounce для ограничения частоты запросов
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+        
+        // Открытие Яндекс.Карт
+        function openYandexMaps(lon, lat) {
+            const url = `https://yandex.ru/maps/213/moscow/?ll=${lon}%2C${lat}&mode=whatshere&whatshere%5Bpoint%5D=${lon}%2C${lat}&whatshere%5Bzoom%5D=17&z=17`;
+            window.open(url, '_blank');
+            console.log('Opening Yandex Maps:', lat, lon);
+        }
+
+
+        // =========================================================================
+        // Tile providers (base + overlay)
+        // =========================================================================
+
+        function getActiveMaps() {
+            return isComparisonMode ? [mapBefore, mapAfter] : [map];
+        }
+
+        // Add all configured raster sources/layers.
+        async function addCustomTiles(targetMap) {
+            for (const [providerName, providerConfig] of Object.entries(tileProviders)) {
+                const sourceId = `${providerName}-tiles`;
+                const layerId = `${providerName}-layer`;
+
+                targetMap.addSource(sourceId, {
+                    type: 'raster',
+                    tiles: [providerConfig.url],
+                    tileSize: providerConfig.tileSize
+                });
+
+                const isOverlay = Boolean(providerConfig.isOverlay);
+                const visibleByDefault = isOverlay
+                    ? Boolean(providerConfig.defaultVisible)
+                    : providerName === currentTileProvider;
+
+                const layerConfig = {
+                    id: layerId,
+                    type: 'raster',
+                    source: sourceId,
+                    minzoom: providerConfig.minzoom,
+                    maxzoom: providerConfig.maxzoom,
+                    layout: {
+                        visibility: visibleByDefault ? 'visible' : 'none'
+                    },
+                    paint: {
+                        'raster-opacity': providerConfig.defaultOpacity ?? (isOverlay ? 0.6 : 1),
+                        ...(providerConfig.paint || {}),
+                    },
+                };
+
+                targetMap.addLayer(layerConfig);
+            }
+
+            console.log('Кастомные тайлы добавлены');
+        }
+
+        // Switch base map provider.
+        window.switchTileProvider = function(providerName) {
+            const provider = tileProviders[providerName];
+            if (!provider) {
+                console.warn(`Провайдер ${providerName} не найден`);
+                return;
+            }
+            if (provider.isOverlay) {
+                console.warn(`Провайдер ${providerName} является overlay и не может быть базовой картой`);
+                return;
+            }
+
+            const mapsToUpdate = getActiveMaps();
+
+            for (const [name, cfg] of Object.entries(tileProviders)) {
+                if (cfg.isOverlay) continue;
+                const layerId = `${name}-layer`;
+                mapsToUpdate.forEach(targetMap => {
+                    if (targetMap && targetMap.getLayer(layerId)) {
+                        targetMap.setLayoutProperty(layerId, 'visibility', 'none');
+                    }
+                });
+            }
+
+            const layerId = `${providerName}-layer`;
+            let found = false;
+            mapsToUpdate.forEach(targetMap => {
+                if (targetMap && targetMap.getLayer(layerId)) {
+                    targetMap.setLayoutProperty(layerId, 'visibility', 'visible');
+                    found = true;
+                }
+            });
+
+            if (found) {
+                currentTileProvider = providerName;
+                updateTileProviderUI(providerName);
+                console.log(`Переключено на провайдер: ${providerName}`);
+            }
+        };
+
+        // Toggle overlay visibility.
+        window.toggleRasterOverlay = function(providerName, visible) {
+            const provider = tileProviders[providerName];
+            if (!provider || !provider.isOverlay) {
+                console.warn(`Overlay ${providerName} не найден`);
+                return;
+            }
+
+            const layerId = `${providerName}-layer`;
+            getActiveMaps().forEach(targetMap => {
+                if (targetMap && targetMap.getLayer(layerId)) {
+                    targetMap.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
+                }
+            });
+        };
+
+        // Update overlay opacity.
+        window.setRasterOverlayOpacity = function(providerName, opacity) {
+            const provider = tileProviders[providerName];
+            if (!provider || !provider.isOverlay) {
+                console.warn(`Overlay ${providerName} не найден`);
+                return;
+            }
+
+            const value = Math.max(0, Math.min(1, Number(opacity)));
+            const layerId = `${providerName}-layer`;
+            getActiveMaps().forEach(targetMap => {
+                if (targetMap && targetMap.getLayer(layerId)) {
+                    targetMap.setPaintProperty(layerId, 'raster-opacity', value);
+                }
+            });
+        };
+
+        // Update active base-map button state.
+        function updateTileProviderUI(activeProvider) {
+            const buttons = document.querySelectorAll('.tile-provider-btn');
+            buttons.forEach(btn => {
+                if (btn.dataset.provider === activeProvider) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+
+// =========================================================================
+// Search: geocoder + local GeoJSON fields
+// =========================================================================
+
+let currentSearchCoords = null; // [lon, lat]
+let searchMarkerOverlayEl = null;
+let searchPopupOverlayEl = null;
+
+function updateSearchMarkerPosition() {
+    if (!isComparisonMode || !currentSearchCoords) return;
+
+    const overlay = document.getElementById('search-markers-overlay');
+    const markerEl = document.getElementById('search-marker-overlay');
+    const popupEl = document.getElementById('search-popup-overlay');
+
+    if (!overlay || !markerEl || !mapBefore) return;
+
+    const [lon, lat] = currentSearchCoords;
+    const point = mapBefore.project([lon, lat]);
+    const mapContainer = mapBefore.getContainer();
+    const mapRect = mapContainer.getBoundingClientRect();
+    const overlayRect = overlay.getBoundingClientRect();
+
+    const left = point.x + (mapRect.left - overlayRect.left);
+    const top = point.y + (mapRect.top - overlayRect.top);
+
+    markerEl.style.left = left + 'px';
+    markerEl.style.top = top + 'px';
+
+    if (popupEl) {
+        popupEl.style.left = left + 'px';
+        popupEl.style.top = (top - 35) + 'px';
+    }
+}
+
+function getSearchMode() {
+    return (searchConfig && searchConfig.search_mode) ? searchConfig.search_mode : 'geocoder';
+}
+
+function isGeojsonSearchMode() {
+    return getSearchMode() === 'geojson';
+}
+
+function getSearchLayers() {
+    if (searchConfig && Array.isArray(searchConfig.search_layers) && searchConfig.search_layers.length > 0) {
+        return searchConfig.search_layers;
+    }
+    if (mapConfig && mapConfig.layers) {
+        return Object.keys(mapConfig.layers);
+    }
+    return [];
+}
+
+function getSearchFields() {
+    if (searchConfig && Array.isArray(searchConfig.search_fields)) {
+        return searchConfig.search_fields;
+    }
+    return [];
+}
+
+function getMaxResults() {
+    if (searchConfig && Number.isFinite(searchConfig.max_results)) {
+        return Math.max(1, searchConfig.max_results);
+    }
+    return 5;
+}
+
+function getZoomOnResult() {
+    if (searchConfig && Number.isFinite(searchConfig.zoom_on_result)) {
+        return searchConfig.zoom_on_result;
+    }
+    return 15;
+}
+
+function getPrimaryMapForSearch() {
+    if (isComparisonMode) return mapBefore || mapAfter;
+    return map;
+}
+
+function getLayerSourceData(targetMap, layerName) {
+    if (!targetMap) return null;
+    const source = targetMap.getSource(layerName);
+    if (!source) return null;
+
+    if (source._data && source._data.type === 'FeatureCollection') {
+        return source._data;
+    }
+
+    if (typeof source.serialize === 'function') {
+        const serialized = source.serialize();
+        if (serialized && serialized.data && serialized.data.type === 'FeatureCollection') {
+            return serialized.data;
+        }
+    }
+
+    return null;
+}
+
+function collectGeometryCoords(geometry, out) {
+    if (!geometry || !geometry.type) return;
+
+    const walk = (node) => {
+        if (!Array.isArray(node)) return;
+        if (node.length >= 2 && typeof node[0] === 'number' && typeof node[1] === 'number') {
+            out.push([node[0], node[1]]);
+            return;
+        }
+        node.forEach(walk);
+    };
+
+    walk(geometry.coordinates);
+}
+
+function getFeatureCenter(feature) {
+    if (!feature || !feature.geometry) return null;
+
+    const points = [];
+    collectGeometryCoords(feature.geometry, points);
+    if (!points.length) return null;
+
+    let minLon = points[0][0];
+    let maxLon = points[0][0];
+    let minLat = points[0][1];
+    let maxLat = points[0][1];
+
+    for (let i = 1; i < points.length; i += 1) {
+        const [lon, lat] = points[i];
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+    }
+
+    return [(minLon + maxLon) / 2, (minLat + maxLat) / 2];
+}
+
+function findGeojsonMatches(query, limit = null) {
+    const q = String(query || '').trim().toLowerCase();
+    if (!q) return [];
+
+    const fields = getSearchFields();
+    if (!fields.length) return [];
+
+    const targetMap = getPrimaryMapForSearch();
+    if (!targetMap) return [];
+
+    const layers = getSearchLayers();
+    const maxResults = limit || getMaxResults();
+    const results = [];
+
+    for (const layerName of layers) {
+        const data = getLayerSourceData(targetMap, layerName);
+        if (!data || !Array.isArray(data.features)) continue;
+
+        for (const feature of data.features) {
+            const props = feature && feature.properties ? feature.properties : {};
+
+            for (const fieldName of fields) {
+                const rawValue = props[fieldName];
+                if (rawValue === undefined || rawValue === null) continue;
+
+                const valueText = String(rawValue);
+                if (!valueText.toLowerCase().includes(q)) continue;
+
+                const coords = getFeatureCenter(feature);
+                if (!coords) continue;
+
+                results.push({
+                    layerName,
+                    fieldName,
+                    valueText,
+                    coords,
+                    feature,
+                    displayText: valueText,
+                });
+
+                if (results.length >= maxResults) {
+                    return results;
+                }
+
+                break;
+            }
+        }
+    }
+
+    return results;
+}
+
+function getFeatureBounds(feature) {
+    if (!feature || !feature.geometry) return null;
+
+    const points = [];
+    collectGeometryCoords(feature.geometry, points);
+    if (!points.length) return null;
+
+    let minLon = points[0][0];
+    let maxLon = points[0][0];
+    let minLat = points[0][1];
+    let maxLat = points[0][1];
+
+    for (let i = 1; i < points.length; i += 1) {
+        const [lon, lat] = points[i];
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+    }
+
+    return [
+        [minLon, minLat],
+        [maxLon, maxLat],
+    ];
+}
+
+function isPolygonFeature(feature) {
+    if (!feature || !feature.geometry || !feature.geometry.type) return false;
+    const t = feature.geometry.type;
+    return t === 'Polygon' || t === 'MultiPolygon';
+}
+
+const SEARCH_HIGHLIGHT_SOURCE_ID = 'wibemaps-search-highlight-source';
+const SEARCH_HIGHLIGHT_FILL_ID = 'wibemaps-search-highlight-fill';
+const SEARCH_HIGHLIGHT_LINE_ID = 'wibemaps-search-highlight-line';
+
+function ensureSearchHighlightLayers(targetMap) {
+    if (!targetMap || targetMap.getSource(SEARCH_HIGHLIGHT_SOURCE_ID)) return;
+
+    targetMap.addSource(SEARCH_HIGHLIGHT_SOURCE_ID, {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+    });
+
+    targetMap.addLayer({
+        id: SEARCH_HIGHLIGHT_FILL_ID,
+        type: 'fill',
+        source: SEARCH_HIGHLIGHT_SOURCE_ID,
+        paint: {
+            'fill-color': '#ffd400',
+            'fill-opacity': 0.28,
+        },
+    });
+
+    targetMap.addLayer({
+        id: SEARCH_HIGHLIGHT_LINE_ID,
+        type: 'line',
+        source: SEARCH_HIGHLIGHT_SOURCE_ID,
+        paint: {
+            'line-color': '#ffd400',
+            'line-width': 3.5,
+        },
+    });
+}
+
+function clearSearchHighlight(targetMap) {
+    if (!targetMap) return;
+    const source = targetMap.getSource(SEARCH_HIGHLIGHT_SOURCE_ID);
+    if (!source) return;
+    source.setData({ type: 'FeatureCollection', features: [] });
+}
+
+function setSearchHighlight(targetMap, feature) {
+    if (!targetMap) return;
+    if (!feature) {
+        clearSearchHighlight(targetMap);
+        return;
+    }
+    ensureSearchHighlightLayers(targetMap);
+    const source = targetMap.getSource(SEARCH_HIGHLIGHT_SOURCE_ID);
+    if (!source) return;
+    source.setData({
+        type: 'FeatureCollection',
+        features: [feature],
+    });
+}
+
+function renderSearchResult(lon, lat, labelText, feature = null) {
+    const targetMaps = isComparisonMode ? [mapBefore, mapAfter] : [map];
+    const bounds = feature ? getFeatureBounds(feature) : null;
+    const highlightPolygon = isPolygonFeature(feature);
+
+    targetMaps.forEach((targetMap) => {
+        if (!targetMap) return;
+
+        setSearchHighlight(targetMap, highlightPolygon ? feature : null);
+
+        if (bounds && highlightPolygon) {
+            targetMap.fitBounds(bounds, {
+                padding: 56,
+                duration: 1200,
+                maxZoom: Math.max(getZoomOnResult(), 16),
+            });
+        } else {
+            targetMap.flyTo({
+                center: [lon, lat],
+                zoom: getZoomOnResult(),
+                duration: 1200,
+            });
+        }
+    });
+
+    currentSearchCoords = [lon, lat];
+
+    if (isComparisonMode) {
+        const overlay = document.getElementById('search-markers-overlay');
+        if (!overlay) return;
+
+        const existingMarker = document.getElementById('search-marker-overlay');
+        const existingPopup = document.getElementById('search-popup-overlay');
+        if (existingMarker) existingMarker.remove();
+        if (existingPopup) existingPopup.remove();
+
+        const markerEl = document.createElement('div');
+        markerEl.id = 'search-marker-overlay';
+        markerEl.className = 'search-marker search-marker-overlay';
+        overlay.appendChild(markerEl);
+        searchMarkerOverlayEl = markerEl;
+
+        const popupEl = document.createElement('div');
+        popupEl.id = 'search-popup-overlay';
+        popupEl.className = 'search-popup-overlay';
+        popupEl.innerHTML = `
+            <div class="popup-content">
+                <div class="popup-row">
+                    <span class="popup-label">Найдено</span>
+                    <span class="popup-value">${labelText}</span>
+                </div>
+                <button class="popup-close">×</button>
+            </div>
+        `;
+
+        const closeBtn = popupEl.querySelector('.popup-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                const marker = document.getElementById('search-marker-overlay');
+                const popup = document.getElementById('search-popup-overlay');
+                if (marker) marker.remove();
+                if (popup) popup.remove();
+                currentSearchCoords = null;
+                searchMarkerOverlayEl = null;
+                searchPopupOverlayEl = null;
+                [mapBefore, mapAfter].forEach(clearSearchHighlight);
+            });
+        }
+
+        overlay.appendChild(popupEl);
+        searchPopupOverlayEl = popupEl;
+
+        setTimeout(() => updateSearchMarkerPosition(), 100);
+        return;
+    }
+
+    searchMarkers.forEach((marker) => marker && marker.remove());
+    searchPopups.forEach((popup) => popup && popup.remove());
+    searchMarkers = [];
+    searchPopups = [];
+
+    if (!map) return;
+
+    // Для полигонов достаточно подсветки контура; пин оставляем для точек.
+    if (!highlightPolygon) {
+        const el = document.createElement('div');
+        el.className = 'search-marker';
+
+        const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+            .setLngLat([lon, lat])
+            .addTo(map);
+        searchMarkers.push(marker);
+    }
+
+    const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, offset: 25 })
+        .setLngLat([lon, lat])
+        .setHTML(`
+            <div class="popup-content">
+                <div class="popup-row">
+                    <span class="popup-label">Найдено</span>
+                    <span class="popup-value">${labelText}</span>
+                </div>
+            </div>
+        `)
+        .addTo(map);
+
+    popup.on('close', () => {
+        clearSearchHighlight(map);
+    });
+
+    searchPopups.push(popup);
+}
+
+function getGeocoderUrl() {
+    if (searchConfig && searchConfig.geocoder_url) {
+        return searchConfig.geocoder_url;
+    }
+    return 'https://pvz-map-backend.wildberries.ru/api/v2/map/geocode';
+}
+
+function buildGeocoderUrl(query, results = null) {
+    const baseUrl = getGeocoderUrl();
+    const url = new URL(baseUrl);
+    url.searchParams.set('geocode', query);
+    url.searchParams.set('lang', 'ru');
+
+    if (results !== null) {
+        url.searchParams.set('results', results);
+    }
+
+    if (searchConfig && searchConfig.geocoder_params) {
+        for (const [key, value] of Object.entries(searchConfig.geocoder_params)) {
+            url.searchParams.set(key, value);
+        }
+    }
+
+    return url.toString();
+}
+
+async function searchGeojson(queryOverride = null) {
+    const searchInput = document.getElementById('address-search');
+    const query = queryOverride || (searchInput ? searchInput.value.trim() : '');
+
+    hideSuggestions();
+
+    if (!query) {
+        alert('Введите значение для поиска');
+        return;
+    }
+
+    const matches = findGeojsonMatches(query, 1);
+    if (!matches.length) {
+        alert('Ничего не найдено');
+        return;
+    }
+
+    const bestMatch = matches[0];
+    renderSearchResult(
+        bestMatch.coords[0],
+        bestMatch.coords[1],
+        bestMatch.displayText,
+        bestMatch.feature
+    );
+}
+
+async function searchByGeocoder(addressOverride = null) {
+    const searchInput = document.getElementById('address-search');
+    const address = addressOverride || (searchInput ? searchInput.value : '');
+
+    hideSuggestions();
+
+    if (!address) {
+        alert('Введите адрес');
+        return;
+    }
+
+    try {
+        const url = buildGeocoderUrl(address, 1);
+        const response = await fetch(url);
+        const data = await response.json();
+
+        const members = data && data.response && data.response.GeoObjectCollection &&
+            data.response.GeoObjectCollection.featureMember;
+
+        if (!members || members.length === 0) {
+            alert('Адрес не найден');
+            return;
+        }
+
+        const pos = members[0].GeoObject.Point.pos;
+        const coords = pos.split(' ').map(Number);
+        const lon = coords[0];
+        const lat = coords[1];
+
+        renderSearchResult(lon, lat, address);
+    } catch (error) {
+        console.error('Geocoding error:', error);
+        alert('Ошибка при поиске адреса');
+    }
+}
+
+async function searchAddress(addressOverride = null) {
+    if (isGeojsonSearchMode()) {
+        return searchGeojson(addressOverride);
+    }
+    return searchByGeocoder(addressOverride);
+}
+
+async function showSuggestionsFromGeojson(query) {
+    if (!query || query.length < 1) {
+        hideSuggestions();
+        return;
+    }
+
+    const suggestionsContainer = document.getElementById('address-search-suggestions');
+    if (!suggestionsContainer) return;
+
+    const matches = findGeojsonMatches(query, getMaxResults());
+    if (!matches.length) {
+        hideSuggestions();
+        return;
+    }
+
+    suggestionsContainer.innerHTML = '';
+
+    matches.forEach((item) => {
+        const suggestionText = item.displayText;
+        const row = document.createElement('div');
+        row.className = 'address-search-suggestion-item';
+        row.textContent = suggestionText;
+        row.onclick = () => {
+            const searchInput = document.getElementById('address-search');
+            if (searchInput) searchInput.value = item.valueText;
+            searchGeojson(item.valueText);
+        };
+        suggestionsContainer.appendChild(row);
+    });
+
+    suggestionsContainer.classList.add('visible');
+}
+
+async function showSuggestionsFromGeocoder(query) {
+    if (!query || query.length < 3) {
+        hideSuggestions();
+        return;
+    }
+
+    const suggestionsContainer = document.getElementById('address-search-suggestions');
+    if (!suggestionsContainer) return;
+
+    try {
+        const url = buildGeocoderUrl(query, getMaxResults());
+        const response = await fetch(url);
+        const data = await response.json();
+
+        const members = data && data.response && data.response.GeoObjectCollection &&
+            data.response.GeoObjectCollection.featureMember;
+
+        if (!members || members.length === 0) {
+            hideSuggestions();
+            return;
+        }
+
+        const suggestions = members.slice(0, getMaxResults());
+        suggestionsContainer.innerHTML = '';
+
+        suggestions.forEach((member) => {
+            const geoObject = member.GeoObject;
+            const addressText =
+                (geoObject.metaDataProperty && geoObject.metaDataProperty.GeocoderMetaData && geoObject.metaDataProperty.GeocoderMetaData.text) ||
+                geoObject.name ||
+                'Адрес не указан';
+
+            const item = document.createElement('div');
+            item.className = 'address-search-suggestion-item';
+            item.textContent = addressText;
+            item.onclick = () => {
+                const searchInput = document.getElementById('address-search');
+                if (searchInput) searchInput.value = addressText;
+                searchByGeocoder(addressText);
+            };
+            suggestionsContainer.appendChild(item);
+        });
+
+        suggestionsContainer.classList.add('visible');
+    } catch (error) {
+        console.error('Suggestions error:', error);
+        hideSuggestions();
+    }
+}
+
+async function showSuggestions(query) {
+    if (isGeojsonSearchMode()) {
+        return showSuggestionsFromGeojson(query);
+    }
+    return showSuggestionsFromGeocoder(query);
+}
+
+function hideSuggestions() {
+    const suggestionsContainer = document.getElementById('address-search-suggestions');
+    if (suggestionsContainer) {
+        suggestionsContainer.classList.remove('visible');
+    }
+}
+
+const debouncedShowSuggestions = debounce(showSuggestions, 300);
+
+document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.getElementById('address-search');
+    if (!searchInput) return;
+
+    searchInput.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            searchAddress();
+        }
+    });
+
+    if (searchConfig && searchConfig.autocomplete) {
+        searchInput.addEventListener('input', function (e) {
+            const query = e.target.value.trim();
+            const minLen = isGeojsonSearchMode() ? 1 : 3;
+            if (query.length >= minLen) {
+                debouncedShowSuggestions(query);
+            } else {
+                hideSuggestions();
+            }
+        });
+
+        searchInput.addEventListener('blur', function () {
+            setTimeout(hideSuggestions, 200);
+        });
+
+        searchInput.addEventListener('focus', function () {
+            const query = searchInput.value.trim();
+            const minLen = isGeojsonSearchMode() ? 1 : 3;
+            if (query.length >= minLen) {
+                debouncedShowSuggestions(query);
+            }
+        });
+    }
+});
+
+
+        // =========================================================================
+        // Легенда
+        // =========================================================================
+        
+        // Инициализация легенды
+        function initLegend() {
+            try {
+                                // Градиент для population
+                const populationConfig = mapConfig.layers.population;
+                const populationColors = populationConfig.colors;
+                const populationGradient = `linear-gradient(to right, ${populationColors.join(', ')})`;
+                
+                const populationColorbar = document.getElementById('population-colorbar');
+                const populationValues = document.getElementById('population-values');
+                const populationLoader = document.getElementById('population-loader');
+                
+                if (populationColorbar) populationColorbar.style.background = populationGradient;
+                
+                // Значения для population
+                const populationMin = populationConfig.stats.q05;
+                const populationMax = populationConfig.stats.q95;
+                
+                const populationMinEl = document.getElementById('population-min');
+                const populationMaxEl = document.getElementById('population-max');
+                if (populationMinEl) populationMinEl.textContent = formatNumber(populationMin);
+                if (populationMaxEl) populationMaxEl.textContent = formatNumber(populationMax);
+                
+                // Скрываем лоадер и показываем данные
+                if (populationLoader) populationLoader.style.display = 'none';
+                if (populationColorbar) populationColorbar.style.display = 'block';
+                if (populationValues) populationValues.style.display = 'flex';
+                // Градиент для parks
+                const parksConfig = mapConfig.layers.parks;
+                const parksColors = parksConfig.colors;
+                const parksGradient = `linear-gradient(to right, ${parksColors.join(', ')})`;
+                
+                const parksColorbar = document.getElementById('parks-colorbar');
+                const parksValues = document.getElementById('parks-values');
+                const parksLoader = document.getElementById('parks-loader');
+                
+                if (parksColorbar) parksColorbar.style.background = parksGradient;
+                
+                // Значения для parks
+                const parksMin = parksConfig.stats.q05;
+                const parksMax = parksConfig.stats.q95;
+                
+                const parksMinEl = document.getElementById('parks-min');
+                const parksMaxEl = document.getElementById('parks-max');
+                if (parksMinEl) parksMinEl.textContent = formatNumber(parksMin);
+                if (parksMaxEl) parksMaxEl.textContent = formatNumber(parksMax);
+                
+                // Скрываем лоадер и показываем данные
+                if (parksLoader) parksLoader.style.display = 'none';
+                if (parksColorbar) parksColorbar.style.display = 'block';
+                if (parksValues) parksValues.style.display = 'flex';
+            } catch (error) {
+                console.error('Ошибка инициализации легенды:', error);
+                // При ошибке также скрываем лоадеры
+                const populationLoader = document.getElementById('population-loader');
+                if (populationLoader) populationLoader.style.display = 'none';
+                const parksLoader = document.getElementById('parks-loader');
+                if (parksLoader) parksLoader.style.display = 'none';
+            }
+        }
+        
+        // Переключение видимости слоя
+        function toggleLayer(layerId, visible) {
+            const targetMaps = isComparisonMode ? [mapBefore, mapAfter] : [map];
+            let found = false;
+            
+            targetMaps.forEach(targetMap => {
+                if (targetMap && targetMap.getLayer(layerId)) {
+                    if (visible) {
+                        targetMap.setLayoutProperty(layerId, 'visibility', 'visible');
+                    } else {
+                        targetMap.setLayoutProperty(layerId, 'visibility', 'none');
+                    }
+                    found = true;
+                }
+            });
+            
+            if (!found) {
+                console.warn(`Слой ${layerId} не найден`);
+            }
+        }
+        
+        // Сворачивание всей панели легенды
+        function toggleLegendPanel() {
+            const body = document.querySelector('.legend-body');
+            const header = document.querySelector('.legend-panel-header');
+
+            if (body && header) {
+                body.classList.toggle('collapsed');
+                header.classList.toggle('collapsed');
+            }
+        }
+
+        // Переключение состояния блока инструкций
+        function toggleInstructions() {
+            const content = document.querySelector('.legend-instructions-content');
+            const header = document.querySelector('.legend-instructions-header');
+            
+            if (content && header) {
+                content.classList.toggle('collapsed');
+                header.classList.toggle('collapsed');
+            }
+        }
+        
+        // Установка начального состояния (скрыто по умолчанию)
+        document.addEventListener('DOMContentLoaded', function() {
+            const content = document.querySelector('.legend-instructions-content');
+            const header = document.querySelector('.legend-instructions-header');
+            
+            if (content && header) {
+                // Убеждаемся, что блок скрыт по умолчанию
+                content.classList.add('collapsed');
+                header.classList.add('collapsed');
+            }
+        });
+
+        // =========================================================================
+        // Инициализация карты
+        // =========================================================================
+        
+        // Инициализация карты
+        async function initMap() {
+            await loadConfig();
+            
+            if (isComparisonMode) {
+                // Режим сравнения: создаем две карты
+                mapBefore = new maplibregl.Map({
+                    container: 'before',
+                    style: {
+                        version: 8,
+                        sources: {},
+                        layers: []
+                    },
+                    center: mapSettings.center,
+                    zoom: mapSettings.zoom,
+                    cooperativeGestures: true
+                });
+                
+                mapAfter = new maplibregl.Map({
+                    container: 'after',
+                    style: {
+                        version: 8,
+                        sources: {},
+                        layers: []
+                    },
+                    center: mapSettings.center,
+                    zoom: mapSettings.zoom,
+                    cooperativeGestures: true
+                });
+                
+                // Ждем загрузки обеих карт
+                let beforeLoaded = false;
+                let afterLoaded = false;
+                
+                const checkAndInit = async () => {
+                    if (beforeLoaded && afterLoaded) {
+                        console.log('Обе карты загружены');
+                        
+                        // Добавляем кастомные тайлы на обе карты
+                        await addCustomTiles(mapBefore);
+                        await addCustomTiles(mapAfter);
+                        
+                        // Загружаем слои
+                        await loadLayersLeft();
+                        await loadLayersRight();
+                        layersLoaded = true;
+                        
+                        // Инициализируем обработчики
+                        initEventHandlers();
+                        
+                        // Инициализируем легенду
+                        initLegend();
+                        
+                        // Инициализируем UI переключения тайлов
+                        updateTileProviderUI(currentTileProvider);
+                        
+                        // Инициализируем слайдер сравнения
+                        compare = new maplibregl.Compare(mapBefore, mapAfter, '.comparison-container', {
+                            orientation: 'vertical',
+                            mousemove: false
+                        });
+                        
+                        // Добавляем обработчики для обновления позиции маркера поиска
+                        if (typeof updateSearchMarkerPosition === 'function') {
+                            mapBefore.on('move', updateSearchMarkerPosition);
+                            mapBefore.on('moveend', updateSearchMarkerPosition);
+                            mapAfter.on('move', updateSearchMarkerPosition);
+                            mapAfter.on('moveend', updateSearchMarkerPosition);
+                        }
+                        
+                        // Инициализируем оптимизацию для неактивных вкладок
+                        initVisibilityOptimization();
+                    }
+                };
+                
+                mapBefore.on('load', async () => {
+                    console.log('Левая карта (до) загружена');
+                    beforeLoaded = true;
+                    await checkAndInit();
+                });
+                
+                mapAfter.on('load', async () => {
+                    console.log('Правая карта (после) загружена');
+                    afterLoaded = true;
+                    await checkAndInit();
+                });
+            } else {
+                // Обычный режим: одна карта
+                map = new maplibregl.Map({
+                    container: 'map',
+                    style: {
+                        version: 8,
+                        sources: {},
+                        layers: []
+                    },
+                    center: mapSettings.center,
+                    zoom: mapSettings.zoom,
+                    cooperativeGestures: true
+                });
+                
+                map.on('load', async () => {
+                    console.log('Карта загружена');
+                    
+                    // Добавляем кастомные тайлы
+                    await addCustomTiles(map);
+                    
+                    // Загружаем и добавляем слои
+                    await loadLayers();
+                    layersLoaded = true;
+                    
+                    // Инициализируем обработчики
+                    initEventHandlers();
+                    
+                    // Инициализируем легенду
+                    initLegend();
+                    
+                    // Инициализируем UI переключения тайлов
+                    updateTileProviderUI(currentTileProvider);
+                    
+                    // Добавляем обработчики для обновления позиции маркера поиска (если используется overlay)
+                    if (typeof updateSearchMarkerPosition === 'function') {
+                        map.on('move', updateSearchMarkerPosition);
+                        map.on('moveend', updateSearchMarkerPosition);
+                    }
+                    
+                    // Инициализируем оптимизацию для неактивных вкладок
+                    initVisibilityOptimization();
+                });
+            }
+        }
+        
+        // Инициализация обработчиков событий
+        function initEventHandlers() {
+                        function map_populationPopupHtml(props) {
+                return `<div class="popup-content">` + `<div class="popup-row"><span class="popup-label">Жителей в точке</span><span class="popup-value">${(props["population"] !== undefined && props["population"] !== null ? (typeof props["population"] === "number" ? props["population"].toLocaleString("ru-RU") : String(props["population"])) : "н/д")}</span></div>` + `</div>`;
+            }
+            map.on('mouseenter', 'population-layer', () => {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+            
+            map.on('mouseleave', 'population-layer', () => {
+                map.getCanvas().style.cursor = '';
+            });
+            function map_parksPopupHtml(props) {
+                return `<div class="popup-content">` + `<div class="popup-row"><span class="popup-label">Имя</span><span class="popup-value">${(props["label"] !== undefined && props["label"] !== null ? (typeof props["label"] === "number" ? props["label"].toLocaleString("ru-RU") : String(props["label"])) : "н/д")}</span></div>` + `<div class="popup-row"><span class="popup-label">Спрос модели</span><span class="popup-value">${(props["park_demand"] !== undefined && props["park_demand"] !== null ? (typeof props["park_demand"] === "number" ? props["park_demand"].toLocaleString("ru-RU") : String(props["park_demand"])) : "н/д")}</span></div>` + `</div>`;
+            }
+            map.on('mouseenter', 'parks-layer', () => {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+            
+            map.on('mouseleave', 'parks-layer', () => {
+                map.getCanvas().style.cursor = '';
+            });
+            const mapCombinedPopup = new maplibregl.Popup({
+                closeButton: true,
+                closeOnClick: false
+            });
+            const mapPopupLayers = ["population-layer", "parks-layer"];
+            const mapPopupLayerLabels = {"population": "Население (точки домов)", "parks": "Спрос модели"};
+            const mapPopupRenderers = {
+                "population": map_populationPopupHtml,
+                "parks": map_parksPopupHtml
+            };
+            const mapPopupHighlightSourceId = 'map-popup-highlight-source';
+            const mapPopupHighlightFillLayerId = 'map-popup-highlight-fill';
+            const mapPopupHighlightLineLayerId = 'map-popup-highlight-line';
+
+            function ensureMapPopupHighlightLayers() {
+                if (map.getSource(mapPopupHighlightSourceId)) return;
+
+                map.addSource(mapPopupHighlightSourceId, {
+                    type: 'geojson',
+                    data: {
+                        type: 'FeatureCollection',
+                        features: []
+                    }
+                });
+
+                map.addLayer({
+                    id: mapPopupHighlightFillLayerId,
+                    type: 'fill',
+                    source: mapPopupHighlightSourceId,
+                    paint: {
+                        'fill-color': '#ffd400',
+                        'fill-opacity': 0.28
+                    }
+                });
+
+                map.addLayer({
+                    id: mapPopupHighlightLineLayerId,
+                    type: 'line',
+                    source: mapPopupHighlightSourceId,
+                    paint: {
+                        'line-color': '#ffd400',
+                        'line-width': 3.5
+                    }
+                });
+            }
+
+            function clearMapPopupHighlight() {
+                const source = map.getSource(mapPopupHighlightSourceId);
+                if (!source) return;
+                source.setData({
+                    type: 'FeatureCollection',
+                    features: []
+                });
+            }
+
+            function setMapPopupHighlight(feature) {
+                if (!feature) {
+                    clearMapPopupHighlight();
+                    return;
+                }
+                ensureMapPopupHighlightLayers();
+                const source = map.getSource(mapPopupHighlightSourceId);
+                if (!source) return;
+                source.setData({
+                    type: 'FeatureCollection',
+                    features: [feature]
+                });
+            }
+
+            mapCombinedPopup.on('close', () => {
+                clearMapPopupHighlight();
+            });
+
+            map.on('click', (e) => {
+                const features = map.queryRenderedFeatures(e.point, { layers: mapPopupLayers });
+                const allFeaturesAtPoint = map.queryRenderedFeatures(e.point);
+                if (!features || !features.length) {
+                    clearMapPopupHighlight();
+                    return;
+                }
+
+                const byLayer = new Map();
+                features.forEach((feature) => {
+                    if (!feature || !feature.layer || !feature.layer.id) return;
+                    const layerId = feature.layer.id;
+                    const layerName = layerId.endsWith('-layer') ? layerId.slice(0, -6) : layerId;
+                    if (!mapPopupRenderers[layerName]) return;
+                    if (!byLayer.has(layerName)) {
+                        byLayer.set(layerName, feature);
+                    }
+                });
+
+                if (byLayer.size === 0) {
+                    clearMapPopupHighlight();
+                    return;
+                }
+
+                const polygonFeature = allFeaturesAtPoint.find((feature) => {
+                    if (!feature || !feature.geometry) return false;
+                    if (!feature.layer || !feature.layer.id) return false;
+                    if (feature.layer.id === mapPopupHighlightFillLayerId || feature.layer.id === mapPopupHighlightLineLayerId) return false;
+                    const geomType = feature.geometry.type;
+                    return geomType === 'Polygon' || geomType === 'MultiPolygon';
+                });
+
+                if (polygonFeature) {
+                    setMapPopupHighlight(polygonFeature);
+                } else {
+                    clearMapPopupHighlight();
+                }
+
+                const sections = [];
+                byLayer.forEach((feature, layerName) => {
+                    const props = feature.properties || {};
+                    const rawLayerTitle = mapPopupLayerLabels[layerName] || layerName;
+                    const layerTitle = String(rawLayerTitle)
+                        .replaceAll('&', '&amp;')
+                        .replaceAll('<', '&lt;')
+                        .replaceAll('>', '&gt;')
+                        .replaceAll('"', '&quot;');
+                    const layerHtml = mapPopupRenderers[layerName](props);
+                    sections.push(`<div class="popup-layer-section"><div class="popup-row"><span class="popup-label">Слой</span><span class="popup-value">${layerTitle}</span></div>${layerHtml}</div>`);
+                });
+
+                mapCombinedPopup.setLngLat(e.lngLat)
+                    .setHTML(sections.join('<hr/>'))
+                    .addTo(map);
+
+                if (false) {
+                    const popupEl = mapCombinedPopup.getElement();
+                    if (popupEl) {
+                        popupEl.classList.add('popup--resizable');
+                        const shellEl = popupEl.querySelector('.maplibregl-popup-content');
+                        if (shellEl) shellEl.classList.add('popup-shell--resizable');
+                    }
+                }
+            });
+            // Двойной клик / правый клик для перехода в Яндекс.Карты
+            map.on('dblclick', (e) => {
+                openYandexMaps(e.lngLat.lng, e.lngLat.lat);
+            });
+            
+            map.on('contextmenu', (e) => {
+                e.preventDefault();
+                openYandexMaps(e.lngLat.lng, e.lngLat.lat);
+            });
+        }
+
+        // =========================================================================
+        // Глобальные переменные и конфигурация
+        // =========================================================================
+        
+        // Глобальные переменные
+        let map;
+        let mapBefore = null; // Левая карта (до)
+        let mapAfter = null;  // Правая карта (после)
+        let compare = null;   // Слайдер сравнения
+        let searchMarkers = [];
+        let searchPopups = [];
+        let mapConfig = null;
+        let layersLoaded = false; // Флаг загрузки слоев
+        let currentTileProvider = 'yandex'; // Текущий провайдер тайлов
+        const isComparisonMode = false;
+        const comparisonLeftLayers = [];
+        const comparisonRightLayers = [];
+        const searchConfig = {"geocoder_url": null, "geocoder_params": {}, "autocomplete": true, "zoom_on_result": 16, "search_mode": "geojson", "search_fields": ["label"], "search_layers": ["parks"], "max_results": 5};
+        const embeddedPopulationData = {"type": "FeatureCollection", "name": "population", "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}}, "features": [{"type": "Feature", "properties": {"population": 129}, "geometry": {"type": "Point", "coordinates": [37.60146021394597, 55.74335225844633]}}, {"type": "Feature", "properties": {"population": 81}, "geometry": {"type": "Point", "coordinates": [37.572278999795145, 55.728346999879825]}}, {"type": "Feature", "properties": {"population": 142}, "geometry": {"type": "Point", "coordinates": [37.56718020087005, 55.735618349760145]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.6048978132134, 55.74021415412674]}}, {"type": "Feature", "properties": {"population": 469}, "geometry": {"type": "Point", "coordinates": [37.57240890606668, 55.7357222084848]}}, {"type": "Feature", "properties": {"population": 17}, "geometry": {"type": "Point", "coordinates": [37.57842654049199, 55.744187574997355]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.57102307148461, 55.737518454234916]}}, {"type": "Feature", "properties": {"population": 134}, "geometry": {"type": "Point", "coordinates": [37.60769999904603, 55.74600000008212]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.57087366368659, 55.738072900996265]}}, {"type": "Feature", "properties": {"population": 22}, "geometry": {"type": "Point", "coordinates": [37.597840460593424, 55.74719740968334]}}, {"type": "Feature", "properties": {"population": 14}, "geometry": {"type": "Point", "coordinates": [37.599186611199535, 55.73789396340972]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.57351795982828, 55.738844107099574]}}, {"type": "Feature", "properties": {"population": 213}, "geometry": {"type": "Point", "coordinates": [37.57665553975711, 55.73806112302919]}}, {"type": "Feature", "properties": {"population": 157}, "geometry": {"type": "Point", "coordinates": [37.58669037186098, 55.739094028985214]}}, {"type": "Feature", "properties": {"population": 263}, "geometry": {"type": "Point", "coordinates": [37.59008441182026, 55.73018620248957]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.56341000036867, 55.73054000022803]}}, {"type": "Feature", "properties": {"population": 314}, "geometry": {"type": "Point", "coordinates": [37.59245000025515, 55.73017999996456]}}, {"type": "Feature", "properties": {"population": 182}, "geometry": {"type": "Point", "coordinates": [37.58000999994498, 55.73042999958643]}}, {"type": "Feature", "properties": {"population": 185}, "geometry": {"type": "Point", "coordinates": [37.57123000020697, 55.73058000061441]}}, {"type": "Feature", "properties": {"population": 246}, "geometry": {"type": "Point", "coordinates": [37.58868000007809, 55.72978000027478]}}, {"type": "Feature", "properties": {"population": 106}, "geometry": {"type": "Point", "coordinates": [37.57150999969112, 55.730200000094406]}}, {"type": "Feature", "properties": {"population": 627}, "geometry": {"type": "Point", "coordinates": [37.56688000007179, 55.72960000034187]}}, {"type": "Feature", "properties": {"population": 300}, "geometry": {"type": "Point", "coordinates": [37.58863999989514, 55.73856999988081]}}, {"type": "Feature", "properties": {"population": 188}, "geometry": {"type": "Point", "coordinates": [37.579142678334776, 55.73035875894959]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.59078308641395, 55.740259929837286]}}, {"type": "Feature", "properties": {"population": 260}, "geometry": {"type": "Point", "coordinates": [37.583989999285954, 55.72663000000709]}}, {"type": "Feature", "properties": {"population": 227}, "geometry": {"type": "Point", "coordinates": [37.58796000037792, 55.729489999580906]}}, {"type": "Feature", "properties": {"population": 179}, "geometry": {"type": "Point", "coordinates": [37.55846000018389, 55.72955999996308]}}, {"type": "Feature", "properties": {"population": 392}, "geometry": {"type": "Point", "coordinates": [37.582235031682366, 55.72664056174939]}}, {"type": "Feature", "properties": {"population": 370}, "geometry": {"type": "Point", "coordinates": [37.58359999929865, 55.727209999741014]}}, {"type": "Feature", "properties": {"population": 319}, "geometry": {"type": "Point", "coordinates": [37.56458000033072, 55.72874000011177]}}, {"type": "Feature", "properties": {"population": 70}, "geometry": {"type": "Point", "coordinates": [37.565799999623145, 55.72931999986462]}}, {"type": "Feature", "properties": {"population": 392}, "geometry": {"type": "Point", "coordinates": [37.581040000164876, 55.72570000002601]}}, {"type": "Feature", "properties": {"population": 202}, "geometry": {"type": "Point", "coordinates": [37.571460000360744, 55.72484999955573]}}, {"type": "Feature", "properties": {"population": 210}, "geometry": {"type": "Point", "coordinates": [37.571079999520805, 55.72436000039388]}}, {"type": "Feature", "properties": {"population": 179}, "geometry": {"type": "Point", "coordinates": [37.58022595943082, 55.7247947180701]}}, {"type": "Feature", "properties": {"population": 151}, "geometry": {"type": "Point", "coordinates": [37.568409999883905, 55.72395999976162]}}, {"type": "Feature", "properties": {"population": 123}, "geometry": {"type": "Point", "coordinates": [37.5674100006995, 55.72400999968528]}}, {"type": "Feature", "properties": {"population": 294}, "geometry": {"type": "Point", "coordinates": [37.58162358170609, 55.724627524401114]}}, {"type": "Feature", "properties": {"population": 202}, "geometry": {"type": "Point", "coordinates": [37.572489999682354, 55.724120000202674]}}, {"type": "Feature", "properties": {"population": 314}, "geometry": {"type": "Point", "coordinates": [37.57869000019513, 55.72393999997657]}}, {"type": "Feature", "properties": {"population": 392}, "geometry": {"type": "Point", "coordinates": [37.57726999998781, 55.72428999979486]}}, {"type": "Feature", "properties": {"population": 664}, "geometry": {"type": "Point", "coordinates": [37.581203110864315, 55.719366634369955]}}, {"type": "Feature", "properties": {"population": 235}, "geometry": {"type": "Point", "coordinates": [37.57476000018448, 55.723850000311316]}}, {"type": "Feature", "properties": {"population": 235}, "geometry": {"type": "Point", "coordinates": [37.57971879307932, 55.72324098051428]}}, {"type": "Feature", "properties": {"population": 17}, "geometry": {"type": "Point", "coordinates": [37.570207098474405, 55.72585431675581]}}, {"type": "Feature", "properties": {"population": 1182}, "geometry": {"type": "Point", "coordinates": [37.58377644638673, 55.721051458414486]}}, {"type": "Feature", "properties": {"population": 347}, "geometry": {"type": "Point", "coordinates": [37.569809999999705, 55.71975000028387]}}, {"type": "Feature", "properties": {"population": 188}, "geometry": {"type": "Point", "coordinates": [37.58300252800651, 55.719734481223284]}}, {"type": "Feature", "properties": {"population": 67}, "geometry": {"type": "Point", "coordinates": [37.56758999972628, 55.723099999755725]}}, {"type": "Feature", "properties": {"population": 56}, "geometry": {"type": "Point", "coordinates": [37.57115781787893, 55.726229094836285]}}, {"type": "Feature", "properties": {"population": 146}, "geometry": {"type": "Point", "coordinates": [37.59071999952816, 55.74339000005959]}}, {"type": "Feature", "properties": {"population": 652}, "geometry": {"type": "Point", "coordinates": [37.574049999631704, 55.72008999933521]}}, {"type": "Feature", "properties": {"population": 1182}, "geometry": {"type": "Point", "coordinates": [37.5848984394817, 55.722135332873265]}}, {"type": "Feature", "properties": {"population": 190}, "geometry": {"type": "Point", "coordinates": [37.582128380098546, 55.71973326386316]}}, {"type": "Feature", "properties": {"population": 106}, "geometry": {"type": "Point", "coordinates": [37.567769999651304, 55.722089999850596]}}, {"type": "Feature", "properties": {"population": 13}, "geometry": {"type": "Point", "coordinates": [37.57058738677519, 55.725511658828076]}}, {"type": "Feature", "properties": {"population": 235}, "geometry": {"type": "Point", "coordinates": [37.57109000046489, 55.71975000028387]}}, {"type": "Feature", "properties": {"population": 392}, "geometry": {"type": "Point", "coordinates": [37.574158813460386, 55.72199890410494]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.57068245907496, 55.7260684757381]}}, {"type": "Feature", "properties": {"population": 300}, "geometry": {"type": "Point", "coordinates": [37.576690000029686, 55.7221100000772]}}, {"type": "Feature", "properties": {"population": 241}, "geometry": {"type": "Point", "coordinates": [37.578110000237004, 55.7162800000133]}}, {"type": "Feature", "properties": {"population": 43}, "geometry": {"type": "Point", "coordinates": [37.571233875539086, 55.725329620691575]}}, {"type": "Feature", "properties": {"population": 235}, "geometry": {"type": "Point", "coordinates": [37.593143476298316, 55.730877016073606]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.57167120596209, 55.72552236606433]}}, {"type": "Feature", "properties": {"population": 140}, "geometry": {"type": "Point", "coordinates": [37.58151999966558, 55.73089000006951]}}, {"type": "Feature", "properties": {"population": 124}, "geometry": {"type": "Point", "coordinates": [37.56994327405521, 55.726784563470616]}}, {"type": "Feature", "properties": {"population": 109}, "geometry": {"type": "Point", "coordinates": [37.58406999965194, 55.73216000054461]}}, {"type": "Feature", "properties": {"population": 104}, "geometry": {"type": "Point", "coordinates": [37.58255999993127, 55.73095000034873]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.5921899999642, 55.730950000348734]}}, {"type": "Feature", "properties": {"population": 389}, "geometry": {"type": "Point", "coordinates": [37.58447999973075, 55.73261999986358]}}, {"type": "Feature", "properties": {"population": 344}, "geometry": {"type": "Point", "coordinates": [37.594794436060106, 55.74568995983057]}}, {"type": "Feature", "properties": {"population": 165}, "geometry": {"type": "Point", "coordinates": [37.58670000000421, 55.73292000019371]}}, {"type": "Feature", "properties": {"population": 109}, "geometry": {"type": "Point", "coordinates": [37.584269999668486, 55.731610000368555]}}, {"type": "Feature", "properties": {"population": 134}, "geometry": {"type": "Point", "coordinates": [37.5832499994943, 55.73140000026207]}}, {"type": "Feature", "properties": {"population": 291}, "geometry": {"type": "Point", "coordinates": [37.59314999986391, 55.73190999986181]}}, {"type": "Feature", "properties": {"population": 28}, "geometry": {"type": "Point", "coordinates": [37.59709999996603, 55.74667000061605]}}, {"type": "Feature", "properties": {"population": 101}, "geometry": {"type": "Point", "coordinates": [37.58894999951654, 55.730979999695]}}, {"type": "Feature", "properties": {"population": 160}, "geometry": {"type": "Point", "coordinates": [37.59168000032626, 55.73360999963855]}}, {"type": "Feature", "properties": {"population": 190}, "geometry": {"type": "Point", "coordinates": [37.56464000060516, 55.73112000004884]}}, {"type": "Feature", "properties": {"population": 174}, "geometry": {"type": "Point", "coordinates": [37.5838000002135, 55.731459999757426]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.587389999567186, 55.732359999836994]}}, {"type": "Feature", "properties": {"population": 384}, "geometry": {"type": "Point", "coordinates": [37.596820000481834, 55.7462100000158]}}, {"type": "Feature", "properties": {"population": 137}, "geometry": {"type": "Point", "coordinates": [37.595709999895995, 55.73456000029291]}}, {"type": "Feature", "properties": {"population": 70}, "geometry": {"type": "Point", "coordinates": [37.588189999633364, 55.73547000019358]}}, {"type": "Feature", "properties": {"population": 252}, "geometry": {"type": "Point", "coordinates": [37.58142000010652, 55.735889999489466]}}, {"type": "Feature", "properties": {"population": 255}, "geometry": {"type": "Point", "coordinates": [37.57078999999092, 55.7359099997285]}}, {"type": "Feature", "properties": {"population": 118}, "geometry": {"type": "Point", "coordinates": [37.573489999765016, 55.73611000003844]}}, {"type": "Feature", "properties": {"population": 106}, "geometry": {"type": "Point", "coordinates": [37.572689999698895, 55.7364900001809]}}, {"type": "Feature", "properties": {"population": 165}, "geometry": {"type": "Point", "coordinates": [37.5699599997875, 55.73651000061831]}}, {"type": "Feature", "properties": {"population": 64}, "geometry": {"type": "Point", "coordinates": [37.58896000046059, 55.743990000238796]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.602224178094495, 55.744044940535204]}}, {"type": "Feature", "properties": {"population": 120}, "geometry": {"type": "Point", "coordinates": [37.59484425213417, 55.744792787729835]}}, {"type": "Feature", "properties": {"population": 17}, "geometry": {"type": "Point", "coordinates": [37.59944565208979, 55.74452358206838]}}, {"type": "Feature", "properties": {"population": 14}, "geometry": {"type": "Point", "coordinates": [37.58820000057742, 55.74419999986637]}}, {"type": "Feature", "properties": {"population": 28}, "geometry": {"type": "Point", "coordinates": [37.58976999967416, 55.74450999987552]}}, {"type": "Feature", "properties": {"population": 50}, "geometry": {"type": "Point", "coordinates": [37.590850000122835, 55.74405999990306]}}, {"type": "Feature", "properties": {"population": 134}, "geometry": {"type": "Point", "coordinates": [37.58266999953611, 55.744710000107666]}}, {"type": "Feature", "properties": {"population": 14}, "geometry": {"type": "Point", "coordinates": [37.597452110811325, 55.744678927715285]}}, {"type": "Feature", "properties": {"population": 70}, "geometry": {"type": "Point", "coordinates": [37.588747760898286, 55.74479503076541]}}, {"type": "Feature", "properties": {"population": 123}, "geometry": {"type": "Point", "coordinates": [37.58804999989129, 55.74491000032591]}}, {"type": "Feature", "properties": {"population": 28}, "geometry": {"type": "Point", "coordinates": [37.5980299997285, 55.74460999961411]}}, {"type": "Feature", "properties": {"population": 199}, "geometry": {"type": "Point", "coordinates": [37.594859999601056, 55.74419000010233]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.59227000033011, 55.74419999986637]}}, {"type": "Feature", "properties": {"population": 25}, "geometry": {"type": "Point", "coordinates": [37.579448772081285, 55.73298664200516]}}, {"type": "Feature", "properties": {"population": 27}, "geometry": {"type": "Point", "coordinates": [37.57988729187376, 55.7327718512902]}}, {"type": "Feature", "properties": {"population": 98}, "geometry": {"type": "Point", "coordinates": [37.59071000038076, 55.745099999988305]}}, {"type": "Feature", "properties": {"population": 48}, "geometry": {"type": "Point", "coordinates": [37.59057999978607, 55.74538000003977]}}, {"type": "Feature", "properties": {"population": 269}, "geometry": {"type": "Point", "coordinates": [37.598110000094486, 55.74505000027327]}}, {"type": "Feature", "properties": {"population": 17}, "geometry": {"type": "Point", "coordinates": [37.59197999990187, 55.744970000292696]}}, {"type": "Feature", "properties": {"population": 235}, "geometry": {"type": "Point", "coordinates": [37.58463999956434, 55.738909999434654]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.58931000026493, 55.74520999974247]}}, {"type": "Feature", "properties": {"population": 25}, "geometry": {"type": "Point", "coordinates": [37.59692000004093, 55.745149999639196]}}, {"type": "Feature", "properties": {"population": 101}, "geometry": {"type": "Point", "coordinates": [37.596699999932945, 55.747279999895476]}}, {"type": "Feature", "properties": {"population": 165}, "geometry": {"type": "Point", "coordinates": [37.58564000054535, 55.73721000036686]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.60945999991029, 55.74754000014586]}}, {"type": "Feature", "properties": {"population": 90}, "geometry": {"type": "Point", "coordinates": [37.58987000013162, 55.739630000492326]}}, {"type": "Feature", "properties": {"population": 193}, "geometry": {"type": "Point", "coordinates": [37.59733000011981, 55.739470000393815]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.60292999968464, 55.74325999972341]}}, {"type": "Feature", "properties": {"population": 120}, "geometry": {"type": "Point", "coordinates": [37.57663999980101, 55.738660000006305]}}, {"type": "Feature", "properties": {"population": 252}, "geometry": {"type": "Point", "coordinates": [37.57670000007549, 55.73949999976689]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.58766999994964, 55.737429999544595]}}, {"type": "Feature", "properties": {"population": 482}, "geometry": {"type": "Point", "coordinates": [37.594356236966135, 55.74735963362832]}}, {"type": "Feature", "properties": {"population": 165}, "geometry": {"type": "Point", "coordinates": [37.58820000057742, 55.743299999717394]}}, {"type": "Feature", "properties": {"population": 50}, "geometry": {"type": "Point", "coordinates": [37.593110000579244, 55.746920000305394]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.57718000047445, 55.743419999959]}}, {"type": "Feature", "properties": {"population": 140}, "geometry": {"type": "Point", "coordinates": [37.59487999969257, 55.737870000248535]}}, {"type": "Feature", "properties": {"population": 87}, "geometry": {"type": "Point", "coordinates": [37.59709999996603, 55.747029999984804]}}, {"type": "Feature", "properties": {"population": 50}, "geometry": {"type": "Point", "coordinates": [37.5901000002854, 55.7469000001465]}}, {"type": "Feature", "properties": {"population": 468}, "geometry": {"type": "Point", "coordinates": [37.580889999478735, 55.74355000026783]}}, {"type": "Feature", "properties": {"population": 25}, "geometry": {"type": "Point", "coordinates": [37.587129999276165, 55.743589999458926]}}, {"type": "Feature", "properties": {"population": 22}, "geometry": {"type": "Point", "coordinates": [37.59841999971587, 55.74677999998912]}}, {"type": "Feature", "properties": {"population": 56}, "geometry": {"type": "Point", "coordinates": [37.60556000003685, 55.74982999959945]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.58566000063686, 55.7410100002845]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.59261049236551, 55.73797136933138]}}, {"type": "Feature", "properties": {"population": 11}, "geometry": {"type": "Point", "coordinates": [37.60762999962421, 55.74709000023085]}}, {"type": "Feature", "properties": {"population": 11}, "geometry": {"type": "Point", "coordinates": [37.59487999969257, 55.73750999981168]}}, {"type": "Feature", "properties": {"population": 356}, "geometry": {"type": "Point", "coordinates": [37.58266000038869, 55.74392000044884]}}, {"type": "Feature", "properties": {"population": 48}, "geometry": {"type": "Point", "coordinates": [37.59438000010035, 55.740360000140505]}}, {"type": "Feature", "properties": {"population": 98}, "geometry": {"type": "Point", "coordinates": [37.59526000053244, 55.740330000417046]}}, {"type": "Feature", "properties": {"population": 56}, "geometry": {"type": "Point", "coordinates": [37.59199999999337, 55.740319999661324]}}, {"type": "Feature", "properties": {"population": 529}, "geometry": {"type": "Point", "coordinates": [37.57367472303185, 55.74025719853799]}}, {"type": "Feature", "properties": {"population": 81}, "geometry": {"type": "Point", "coordinates": [37.58166000030602, 55.74019999949486]}}, {"type": "Feature", "properties": {"population": 154}, "geometry": {"type": "Point", "coordinates": [37.5906700001978, 55.739669999655874]}}, {"type": "Feature", "properties": {"population": 62}, "geometry": {"type": "Point", "coordinates": [37.602329999634975, 55.73976000027907]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.5838000002135, 55.739699999886696]}}, {"type": "Feature", "properties": {"population": 269}, "geometry": {"type": "Point", "coordinates": [37.584269999668486, 55.74046999960327]}}, {"type": "Feature", "properties": {"population": 50}, "geometry": {"type": "Point", "coordinates": [37.59167000028047, 55.74052000013008]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.579379999758125, 55.740609999804384]}}, {"type": "Feature", "properties": {"population": 64}, "geometry": {"type": "Point", "coordinates": [37.59658999942972, 55.74089000021694]}}, {"type": "Feature", "properties": {"population": 140}, "geometry": {"type": "Point", "coordinates": [37.580209999961525, 55.74091999950993]}}, {"type": "Feature", "properties": {"population": 11}, "geometry": {"type": "Point", "coordinates": [37.57889999935906, 55.74091999950991]}}, {"type": "Feature", "properties": {"population": 871}, "geometry": {"type": "Point", "coordinates": [37.576310000088114, 55.741030000428395]}}, {"type": "Feature", "properties": {"population": 31}, "geometry": {"type": "Point", "coordinates": [37.57833999949244, 55.74126999983913]}}, {"type": "Feature", "properties": {"population": 260}, "geometry": {"type": "Point", "coordinates": [37.60081999991433, 55.742839999839255]}}, {"type": "Feature", "properties": {"population": 168}, "geometry": {"type": "Point", "coordinates": [37.59167443436471, 55.741257082507]}}, {"type": "Feature", "properties": {"population": 22}, "geometry": {"type": "Point", "coordinates": [37.586133968848756, 55.74147101439825]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.586530000124895, 55.74155000006745]}}, {"type": "Feature", "properties": {"population": 59}, "geometry": {"type": "Point", "coordinates": [37.60173000048366, 55.7416799995266]}}, {"type": "Feature", "properties": {"population": 300}, "geometry": {"type": "Point", "coordinates": [37.577630000736285, 55.741610000143936]}}, {"type": "Feature", "properties": {"population": 112}, "geometry": {"type": "Point", "coordinates": [37.59088000026008, 55.74175999967874]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.57534000014262, 55.74177999994398]}}, {"type": "Feature", "properties": {"population": 20}, "geometry": {"type": "Point", "coordinates": [37.5990620759551, 55.741828310319676]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.5762899999966, 55.741899999803124]}}, {"type": "Feature", "properties": {"population": 56}, "geometry": {"type": "Point", "coordinates": [37.588991335494335, 55.74198081921186]}}, {"type": "Feature", "properties": {"population": 50}, "geometry": {"type": "Point", "coordinates": [37.5929799999846, 55.742200000112184]}}, {"type": "Feature", "properties": {"population": 232}, "geometry": {"type": "Point", "coordinates": [37.589529999474664, 55.74251999951792]}}, {"type": "Feature", "properties": {"population": 112}, "geometry": {"type": "Point", "coordinates": [37.58361000024267, 55.74232000019692]}}, {"type": "Feature", "properties": {"population": 50}, "geometry": {"type": "Point", "coordinates": [37.602789999942495, 55.74282000011724]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.59108999942401, 55.74298000013433]}}, {"type": "Feature", "properties": {"population": 370}, "geometry": {"type": "Point", "coordinates": [37.57843999994986, 55.742510000334754]}}, {"type": "Feature", "properties": {"population": 235}, "geometry": {"type": "Point", "coordinates": [37.599659999998046, 55.74306000014972]}}, {"type": "Feature", "properties": {"population": 48}, "geometry": {"type": "Point", "coordinates": [37.60942999977306, 55.74801999982867]}}, {"type": "Feature", "properties": {"population": 95}, "geometry": {"type": "Point", "coordinates": [37.57737000044527, 55.74253000021558]}}, {"type": "Feature", "properties": {"population": 31}, "geometry": {"type": "Point", "coordinates": [37.591539999685814, 55.74286999965584]}}, {"type": "Feature", "properties": {"population": 11}, "geometry": {"type": "Point", "coordinates": [37.590739999619665, 55.74306000014972]}}, {"type": "Feature", "properties": {"population": 48}, "geometry": {"type": "Point", "coordinates": [37.60852000010202, 55.74848999999989]}}, {"type": "Feature", "properties": {"population": 557}, "geometry": {"type": "Point", "coordinates": [37.581100000439335, 55.720530000201904]}}, {"type": "Feature", "properties": {"population": 202}, "geometry": {"type": "Point", "coordinates": [37.57306000049305, 55.7226400000728]}}, {"type": "Feature", "properties": {"population": 140}, "geometry": {"type": "Point", "coordinates": [37.57330000069256, 55.72353000010251]}}, {"type": "Feature", "properties": {"population": 140}, "geometry": {"type": "Point", "coordinates": [37.57443999961907, 55.72338000031923]}}, {"type": "Feature", "properties": {"population": 347}, "geometry": {"type": "Point", "coordinates": [37.578769999662775, 55.72126000038721]}}, {"type": "Feature", "properties": {"population": 913}, "geometry": {"type": "Point", "coordinates": [37.57681999972605, 55.72123000014943]}}, {"type": "Feature", "properties": {"population": 566}, "geometry": {"type": "Point", "coordinates": [37.57681999972605, 55.71991000026572]}}, {"type": "Feature", "properties": {"population": 196}, "geometry": {"type": "Point", "coordinates": [37.59648576700901, 55.745499499374155]}}, {"type": "Feature", "properties": {"population": 17}, "geometry": {"type": "Point", "coordinates": [37.60481999934684, 55.74947000028212]}}, {"type": "Feature", "properties": {"population": 252}, "geometry": {"type": "Point", "coordinates": [37.57397000016408, 55.722489999400615]}}, {"type": "Feature", "properties": {"population": 106}, "geometry": {"type": "Point", "coordinates": [37.58724999982511, 55.74214999971517]}}, {"type": "Feature", "properties": {"population": 235}, "geometry": {"type": "Point", "coordinates": [37.5778000006156, 55.72192999969292]}}, {"type": "Feature", "properties": {"population": 17}, "geometry": {"type": "Point", "coordinates": [37.566069999959886, 55.729420000084914]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.60223000007588, 55.74718999993012]}}, {"type": "Feature", "properties": {"population": 165}, "geometry": {"type": "Point", "coordinates": [37.59793000016938, 55.745870000351275]}}, {"type": "Feature", "properties": {"population": 504}, "geometry": {"type": "Point", "coordinates": [37.572339999894545, 55.72464000001735]}}, {"type": "Feature", "properties": {"population": 274}, "geometry": {"type": "Point", "coordinates": [37.565799999623145, 55.733750000170616]}}, {"type": "Feature", "properties": {"population": 143}, "geometry": {"type": "Point", "coordinates": [37.566120000188555, 55.72905000001369]}}, {"type": "Feature", "properties": {"population": 8}, "geometry": {"type": "Point", "coordinates": [37.591690000371976, 55.7466100002298]}}, {"type": "Feature", "properties": {"population": 73}, "geometry": {"type": "Point", "coordinates": [37.562829999512246, 55.727440000154154]}}, {"type": "Feature", "properties": {"population": 48}, "geometry": {"type": "Point", "coordinates": [37.58767999999543, 55.742599999970714]}}, {"type": "Feature", "properties": {"population": 56}, "geometry": {"type": "Point", "coordinates": [37.597639999741205, 55.74526999975355]}}, {"type": "Feature", "properties": {"population": 146}, "geometry": {"type": "Point", "coordinates": [37.591140000551086, 55.74621000001578]}}, {"type": "Feature", "properties": {"population": 48}, "geometry": {"type": "Point", "coordinates": [37.59126000020166, 55.74582000010611]}}, {"type": "Feature", "properties": {"population": 109}, "geometry": {"type": "Point", "coordinates": [37.56393000005234, 55.731490000229236]}}, {"type": "Feature", "properties": {"population": 202}, "geometry": {"type": "Point", "coordinates": [37.57250000062636, 55.72241000022307]}}, {"type": "Feature", "properties": {"population": 176}, "geometry": {"type": "Point", "coordinates": [37.5903400004849, 55.746009999887825]}}, {"type": "Feature", "properties": {"population": 199}, "geometry": {"type": "Point", "coordinates": [37.56546999991025, 55.73266999982586]}}, {"type": "Feature", "properties": {"population": 67}, "geometry": {"type": "Point", "coordinates": [37.59165000018903, 55.74556999994158]}}, {"type": "Feature", "properties": {"population": 165}, "geometry": {"type": "Point", "coordinates": [37.580399999932276, 55.738300000281775]}}, {"type": "Feature", "properties": {"population": 95}, "geometry": {"type": "Point", "coordinates": [37.58062000004033, 55.73898999970242]}}, {"type": "Feature", "properties": {"population": 115}, "geometry": {"type": "Point", "coordinates": [37.583670000517145, 55.738949999841836]}}, {"type": "Feature", "properties": {"population": 67}, "geometry": {"type": "Point", "coordinates": [37.58439278140151, 55.73999752701287]}}, {"type": "Feature", "properties": {"population": 39}, "geometry": {"type": "Point", "coordinates": [37.58175999986515, 55.73883000052004]}}, {"type": "Feature", "properties": {"population": 157}, "geometry": {"type": "Point", "coordinates": [37.59264000022596, 55.7463900002151]}}, {"type": "Feature", "properties": {"population": 305}, "geometry": {"type": "Point", "coordinates": [37.59353999985122, 55.74606000039516]}}, {"type": "Feature", "properties": {"population": 87}, "geometry": {"type": "Point", "coordinates": [37.58993999955348, 55.745400000472195]}}, {"type": "Feature", "properties": {"population": 176}, "geometry": {"type": "Point", "coordinates": [37.59253999976855, 55.74569999966074]}}, {"type": "Feature", "properties": {"population": 22}, "geometry": {"type": "Point", "coordinates": [37.608180000343395, 55.74737000015879]}}, {"type": "Feature", "properties": {"population": 67}, "geometry": {"type": "Point", "coordinates": [37.56728000010481, 55.722520000188204]}}, {"type": "Feature", "properties": {"population": 101}, "geometry": {"type": "Point", "coordinates": [37.57096000076853, 55.72382000003946]}}, {"type": "Feature", "properties": {"population": 95}, "geometry": {"type": "Point", "coordinates": [37.56466999984406, 55.721780000341035]}}, {"type": "Feature", "properties": {"population": 20}, "geometry": {"type": "Point", "coordinates": [37.592030000130606, 55.74637999949543]}}, {"type": "Feature", "properties": {"population": 81}, "geometry": {"type": "Point", "coordinates": [37.5690100008318, 55.723770000378494]}}, {"type": "Feature", "properties": {"population": 126}, "geometry": {"type": "Point", "coordinates": [37.60071000030948, 55.74624000027523]}}, {"type": "Feature", "properties": {"population": 311}, "geometry": {"type": "Point", "coordinates": [37.59199999999337, 55.74456000028247]}}, {"type": "Feature", "properties": {"population": 98}, "geometry": {"type": "Point", "coordinates": [37.5658399998061, 55.72271000008813]}}, {"type": "Feature", "properties": {"population": 224}, "geometry": {"type": "Point", "coordinates": [37.575629999672564, 55.72502999963428]}}, {"type": "Feature", "properties": {"population": 213}, "geometry": {"type": "Point", "coordinates": [37.59404000034172, 55.74438999944646]}}, {"type": "Feature", "properties": {"population": 140}, "geometry": {"type": "Point", "coordinates": [37.56808000017103, 55.7214599998656]}}, {"type": "Feature", "properties": {"population": 193}, "geometry": {"type": "Point", "coordinates": [37.568600000752994, 55.72231000026186]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.57006999939239, 55.722979999766935]}}, {"type": "Feature", "properties": {"population": 101}, "geometry": {"type": "Point", "coordinates": [37.594319999825885, 55.745289999736755]}}, {"type": "Feature", "properties": {"population": 140}, "geometry": {"type": "Point", "coordinates": [37.57554000015916, 55.72420000043029]}}, {"type": "Feature", "properties": {"population": 106}, "geometry": {"type": "Point", "coordinates": [37.564770000301486, 55.72223000020972]}}, {"type": "Feature", "properties": {"population": 22}, "geometry": {"type": "Point", "coordinates": [37.589819999902936, 55.74486999995982]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.58842999983287, 55.74282999972667]}}, {"type": "Feature", "properties": {"population": 168}, "geometry": {"type": "Point", "coordinates": [37.57328000060111, 55.723959999761625]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.58782999978324, 55.74390000026908]}}, {"type": "Feature", "properties": {"population": 174}, "geometry": {"type": "Point", "coordinates": [37.56908420436922, 55.72279724658702]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.568320000370534, 55.7227900001688]}}, {"type": "Feature", "properties": {"population": 176}, "geometry": {"type": "Point", "coordinates": [37.58732000014528, 55.74539000000443]}}, {"type": "Feature", "properties": {"population": 171}, "geometry": {"type": "Point", "coordinates": [37.56871000035784, 55.72321000030688]}}, {"type": "Feature", "properties": {"population": 190}, "geometry": {"type": "Point", "coordinates": [37.56969000034906, 55.72453999969572]}}, {"type": "Feature", "properties": {"population": 39}, "geometry": {"type": "Point", "coordinates": [37.59319000004687, 55.7442999998937]}}, {"type": "Feature", "properties": {"population": 11}, "geometry": {"type": "Point", "coordinates": [37.59484000040792, 55.73933000014876]}}, {"type": "Feature", "properties": {"population": 302}, "geometry": {"type": "Point", "coordinates": [37.5909799998192, 55.744489999492515]}}, {"type": "Feature", "properties": {"population": 64}, "geometry": {"type": "Point", "coordinates": [37.60310999960968, 55.73999000008568]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.567090000134094, 55.7211299996964]}}, {"type": "Feature", "properties": {"population": 36}, "geometry": {"type": "Point", "coordinates": [37.6006600000808, 55.74058999995094]}}, {"type": "Feature", "properties": {"population": 11}, "geometry": {"type": "Point", "coordinates": [37.60094619344886, 55.74042681130212]}}, {"type": "Feature", "properties": {"population": 120}, "geometry": {"type": "Point", "coordinates": [37.604169999966814, 55.739720000196314]}}, {"type": "Feature", "properties": {"population": 36}, "geometry": {"type": "Point", "coordinates": [37.6021800007455, 55.740230000329646]}}, {"type": "Feature", "properties": {"population": 232}, "geometry": {"type": "Point", "coordinates": [37.58775000031558, 55.73703000030121]}}, {"type": "Feature", "properties": {"population": 59}, "geometry": {"type": "Point", "coordinates": [37.578769999662775, 55.74055999989861]}}, {"type": "Feature", "properties": {"population": 112}, "geometry": {"type": "Point", "coordinates": [37.57941999994105, 55.741790000325594]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.604970000033, 55.74998000039901]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.58463000041692, 55.737459999980025]}}, {"type": "Feature", "properties": {"population": 101}, "geometry": {"type": "Point", "coordinates": [37.57761000064478, 55.73959000027633]}}, {"type": "Feature", "properties": {"population": 59}, "geometry": {"type": "Point", "coordinates": [37.60706150708481, 55.74946812406301]}}, {"type": "Feature", "properties": {"population": 56}, "geometry": {"type": "Point", "coordinates": [37.60511999982079, 55.749610000046204]}}, {"type": "Feature", "properties": {"population": 8}, "geometry": {"type": "Point", "coordinates": [37.59008000019388, 55.73649999989517]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.58705999985428, 55.737560000084926]}}, {"type": "Feature", "properties": {"population": 160}, "geometry": {"type": "Point", "coordinates": [37.58802999979978, 55.7359400003208]}}, {"type": "Feature", "properties": {"population": 95}, "geometry": {"type": "Point", "coordinates": [37.5899799997365, 55.73136999972112]}}, {"type": "Feature", "properties": {"population": 59}, "geometry": {"type": "Point", "coordinates": [37.58850000015309, 55.73635000037249]}}, {"type": "Feature", "properties": {"population": 165}, "geometry": {"type": "Point", "coordinates": [37.58927000008198, 55.73145999975743]}}, {"type": "Feature", "properties": {"population": 120}, "geometry": {"type": "Point", "coordinates": [37.57124000025269, 55.72040999990517]}}, {"type": "Feature", "properties": {"population": 316}, "geometry": {"type": "Point", "coordinates": [37.57238000007751, 55.72069000002392]}}, {"type": "Feature", "properties": {"population": 179}, "geometry": {"type": "Point", "coordinates": [37.58240000009774, 55.72578999998051]}}, {"type": "Feature", "properties": {"population": 179}, "geometry": {"type": "Point", "coordinates": [37.58010000035668, 55.72498000000479]}}, {"type": "Feature", "properties": {"population": 202}, "geometry": {"type": "Point", "coordinates": [37.58293999987284, 55.726069999973696]}}, {"type": "Feature", "properties": {"population": 314}, "geometry": {"type": "Point", "coordinates": [37.576149999356225, 55.723719999641546]}}, {"type": "Feature", "properties": {"population": 168}, "geometry": {"type": "Point", "coordinates": [37.571330000664396, 55.721060000390594]}}, {"type": "Feature", "properties": {"population": 129}, "geometry": {"type": "Point", "coordinates": [37.59353999985122, 55.732749999733414]}}, {"type": "Feature", "properties": {"population": 174}, "geometry": {"type": "Point", "coordinates": [37.57306000049305, 55.71927000045345]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.57041000004934, 55.72077000019514]}}, {"type": "Feature", "properties": {"population": 308}, "geometry": {"type": "Point", "coordinates": [37.57523999968519, 55.722820000220096]}}, {"type": "Feature", "properties": {"population": 202}, "geometry": {"type": "Point", "coordinates": [37.584760000113214, 55.72794000000716]}}, {"type": "Feature", "properties": {"population": 392}, "geometry": {"type": "Point", "coordinates": [37.57850000022431, 55.72520999989483]}}, {"type": "Feature", "properties": {"population": 241}, "geometry": {"type": "Point", "coordinates": [37.57218999920835, 55.71913999971611]}}, {"type": "Feature", "properties": {"population": 367}, "geometry": {"type": "Point", "coordinates": [37.576869999954795, 55.7249000003634]}}, {"type": "Feature", "properties": {"population": 647}, "geometry": {"type": "Point", "coordinates": [37.575069999805876, 55.72049999940334]}}, {"type": "Feature", "properties": {"population": 134}, "geometry": {"type": "Point", "coordinates": [37.58708999999151, 55.729430000598676]}}, {"type": "Feature", "properties": {"population": 269}, "geometry": {"type": "Point", "coordinates": [37.585540000087896, 55.728860000104746]}}, {"type": "Feature", "properties": {"population": 224}, "geometry": {"type": "Point", "coordinates": [37.563109999894714, 55.72664999993197]}}, {"type": "Feature", "properties": {"population": 28}, "geometry": {"type": "Point", "coordinates": [37.59442000028337, 55.737580000479745]}}, {"type": "Feature", "properties": {"population": 118}, "geometry": {"type": "Point", "coordinates": [37.56887000019143, 55.72467999987193]}}, {"type": "Feature", "properties": {"population": 109}, "geometry": {"type": "Point", "coordinates": [37.60587999970403, 55.740489999518275]}}, {"type": "Feature", "properties": {"population": 311}, "geometry": {"type": "Point", "coordinates": [37.57776999958004, 55.723010000178085]}}, {"type": "Feature", "properties": {"population": 202}, "geometry": {"type": "Point", "coordinates": [37.58188999956143, 55.72545999997642]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.59300000007611, 55.73789999984007]}}, {"type": "Feature", "properties": {"population": 260}, "geometry": {"type": "Point", "coordinates": [37.590824390052425, 55.73046095180916]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.605430000340554, 55.74113000048868]}}, {"type": "Feature", "properties": {"population": 389}, "geometry": {"type": "Point", "coordinates": [37.5668900001175, 55.727120000024314]}}, {"type": "Feature", "properties": {"population": 168}, "geometry": {"type": "Point", "coordinates": [37.56408999988593, 55.7273499999559]}}, {"type": "Feature", "properties": {"population": 272}, "geometry": {"type": "Point", "coordinates": [37.56355000011076, 55.726199999902335]}}, {"type": "Feature", "properties": {"population": 112}, "geometry": {"type": "Point", "coordinates": [37.566149999427495, 55.72488999970112]}}, {"type": "Feature", "properties": {"population": 67}, "geometry": {"type": "Point", "coordinates": [37.56973999967947, 55.72345000001993]}}, {"type": "Feature", "properties": {"population": 104}, "geometry": {"type": "Point", "coordinates": [37.60481000019941, 55.74054000001947]}}, {"type": "Feature", "properties": {"population": 157}, "geometry": {"type": "Point", "coordinates": [37.58983999999439, 55.74121000025124]}}, {"type": "Feature", "properties": {"population": 56}, "geometry": {"type": "Point", "coordinates": [37.59378000005078, 55.74031000042003]}}, {"type": "Feature", "properties": {"population": 148}, "geometry": {"type": "Point", "coordinates": [37.5644799998733, 55.72680999997429]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.59050000031849, 55.74236999987036]}}, {"type": "Feature", "properties": {"population": 118}, "geometry": {"type": "Point", "coordinates": [37.56992000050285, 55.72516000049594]}}, {"type": "Feature", "properties": {"population": 101}, "geometry": {"type": "Point", "coordinates": [37.58888000009463, 55.74119000019961]}}, {"type": "Feature", "properties": {"population": 134}, "geometry": {"type": "Point", "coordinates": [37.56707000004255, 55.72477999983504]}}, {"type": "Feature", "properties": {"population": 179}, "geometry": {"type": "Point", "coordinates": [37.569089999401164, 55.725310000018354]}}, {"type": "Feature", "properties": {"population": 134}, "geometry": {"type": "Point", "coordinates": [37.56830999942648, 55.7244299998556]}}, {"type": "Feature", "properties": {"population": 224}, "geometry": {"type": "Point", "coordinates": [37.565779999531635, 55.72718999959704]}}, {"type": "Feature", "properties": {"population": 112}, "geometry": {"type": "Point", "coordinates": [37.56704999995111, 55.725330000113544]}}, {"type": "Feature", "properties": {"population": 95}, "geometry": {"type": "Point", "coordinates": [37.57135999990332, 55.729609999797816]}}, {"type": "Feature", "properties": {"population": 134}, "geometry": {"type": "Point", "coordinates": [37.5674100006995, 55.724549999941814]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.590280000210434, 55.74177999994398]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.589910000314575, 55.741890000461105]}}, {"type": "Feature", "properties": {"population": 176}, "geometry": {"type": "Point", "coordinates": [37.56043000021205, 55.72539999985999]}}, {"type": "Feature", "properties": {"population": 39}, "geometry": {"type": "Point", "coordinates": [37.594749999996225, 55.73963000049231]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.57193999986145, 55.72991999936779]}}, {"type": "Feature", "properties": {"population": 64}, "geometry": {"type": "Point", "coordinates": [37.610259999976414, 55.74782000038358]}}, {"type": "Feature", "properties": {"population": 168}, "geometry": {"type": "Point", "coordinates": [37.55846000018389, 55.730079999667566]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.59882898649507, 55.74562655401633]}}, {"type": "Feature", "properties": {"population": 22}, "geometry": {"type": "Point", "coordinates": [37.58948000014425, 55.744560000282455]}}, {"type": "Feature", "properties": {"population": 311}, "geometry": {"type": "Point", "coordinates": [37.55750999943157, 55.7298600005406]}}, {"type": "Feature", "properties": {"population": 154}, "geometry": {"type": "Point", "coordinates": [37.59463999949307, 55.74000999974097]}}, {"type": "Feature", "properties": {"population": 459}, "geometry": {"type": "Point", "coordinates": [37.56031000056142, 55.727899999951056]}}, {"type": "Feature", "properties": {"population": 316}, "geometry": {"type": "Point", "coordinates": [37.55869000033767, 55.72898000023474]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.581959999881626, 55.74052000013008]}}, {"type": "Feature", "properties": {"population": 39}, "geometry": {"type": "Point", "coordinates": [37.582179999989684, 55.73988999963273]}}, {"type": "Feature", "properties": {"population": 67}, "geometry": {"type": "Point", "coordinates": [37.581219999191646, 55.73973999998994]}}, {"type": "Feature", "properties": {"population": 148}, "geometry": {"type": "Point", "coordinates": [37.58307999961499, 55.73032999942396]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.58125000022721, 55.72960999979783]}}, {"type": "Feature", "properties": {"population": 185}, "geometry": {"type": "Point", "coordinates": [37.58586999980079, 55.73348000010383]}}, {"type": "Feature", "properties": {"population": 123}, "geometry": {"type": "Point", "coordinates": [37.58374999998475, 55.7307399997268]}}, {"type": "Feature", "properties": {"population": 154}, "geometry": {"type": "Point", "coordinates": [37.5812300001357, 55.73163000027162]}}, {"type": "Feature", "properties": {"population": 104}, "geometry": {"type": "Point", "coordinates": [37.60216000065399, 55.742909999543926]}}, {"type": "Feature", "properties": {"population": 137}, "geometry": {"type": "Point", "coordinates": [37.58632000006256, 55.731519999666375]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.603450000266605, 55.743009999843274]}}, {"type": "Feature", "properties": {"population": 294}, "geometry": {"type": "Point", "coordinates": [37.58553000004216, 55.73286000041329]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.59566999971297, 55.73792000006071]}}, {"type": "Feature", "properties": {"population": 87}, "geometry": {"type": "Point", "coordinates": [37.58196999992742, 55.72985000013696]}}, {"type": "Feature", "properties": {"population": 434}, "geometry": {"type": "Point", "coordinates": [37.582720000663144, 55.73204999991541]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.59768999996988, 55.74116000010279]}}, {"type": "Feature", "properties": {"population": 112}, "geometry": {"type": "Point", "coordinates": [37.585319999979895, 55.73116000034677]}}, {"type": "Feature", "properties": {"population": 81}, "geometry": {"type": "Point", "coordinates": [37.60195999973915, 55.74386000038454]}}, {"type": "Feature", "properties": {"population": 98}, "geometry": {"type": "Point", "coordinates": [37.596509999962116, 55.738159999885504]}}, {"type": "Feature", "properties": {"population": 20}, "geometry": {"type": "Point", "coordinates": [37.60031000027639, 55.74290999954394]}}, {"type": "Feature", "properties": {"population": 67}, "geometry": {"type": "Point", "coordinates": [37.59984999996887, 55.74319999965549]}}, {"type": "Feature", "properties": {"population": 140}, "geometry": {"type": "Point", "coordinates": [37.57952999954594, 55.73104999942887]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.584760921784735, 55.73946438597072]}}, {"type": "Feature", "properties": {"population": 140}, "geometry": {"type": "Point", "coordinates": [37.58203999934927, 55.73034000021046]}}, {"type": "Feature", "properties": {"population": 31}, "geometry": {"type": "Point", "coordinates": [37.58829000009083, 55.744500000190996]}}, {"type": "Feature", "properties": {"population": 17}, "geometry": {"type": "Point", "coordinates": [37.5887400003526, 55.74425999991353]}}, {"type": "Feature", "properties": {"population": 78}, "geometry": {"type": "Point", "coordinates": [37.587949999433796, 55.74585000015974]}}, {"type": "Feature", "properties": {"population": 140}, "geometry": {"type": "Point", "coordinates": [37.57445000056309, 55.737549999630815]}}, {"type": "Feature", "properties": {"population": 137}, "geometry": {"type": "Point", "coordinates": [37.57819000060291, 55.74386000038453]}}, {"type": "Feature", "properties": {"population": 126}, "geometry": {"type": "Point", "coordinates": [37.58065000017758, 55.74452999974264]}}, {"type": "Feature", "properties": {"population": 22}, "geometry": {"type": "Point", "coordinates": [37.57793000031189, 55.74364000003348]}}, {"type": "Feature", "properties": {"population": 62}, "geometry": {"type": "Point", "coordinates": [37.58012000044812, 55.74421000013342]}}, {"type": "Feature", "properties": {"population": 25}, "geometry": {"type": "Point", "coordinates": [37.57809999929294, 55.744210000133435]}}, {"type": "Feature", "properties": {"population": 90}, "geometry": {"type": "Point", "coordinates": [37.57919999983303, 55.74391000010744]}}, {"type": "Feature", "properties": {"population": 81}, "geometry": {"type": "Point", "coordinates": [37.57765999997519, 55.74290999954394]}}, {"type": "Feature", "properties": {"population": 168}, "geometry": {"type": "Point", "coordinates": [37.56074999987918, 55.73009999984867]}}, {"type": "Feature", "properties": {"population": 196}, "geometry": {"type": "Point", "coordinates": [37.565610000550656, 55.73163999971347]}}, {"type": "Feature", "properties": {"population": 6}, "geometry": {"type": "Point", "coordinates": [37.559940898082594, 55.73015148968314]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.601670000209204, 55.74124999981824]}}, {"type": "Feature", "properties": {"population": 36}, "geometry": {"type": "Point", "coordinates": [37.60284000017125, 55.740669999809064]}}, {"type": "Feature", "properties": {"population": 81}, "geometry": {"type": "Point", "coordinates": [37.60219999993866, 55.741480000451574]}}, {"type": "Feature", "properties": {"population": 81}, "geometry": {"type": "Point", "coordinates": [37.59013999957003, 55.740009999740955]}}, {"type": "Feature", "properties": {"population": 28}, "geometry": {"type": "Point", "coordinates": [37.59104304807738, 55.740897142642986]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.596259999716885, 55.74251999951793]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.59331999974323, 55.74164999980655]}}, {"type": "Feature", "properties": {"population": 112}, "geometry": {"type": "Point", "coordinates": [37.589599999794856, 55.74025000036759]}}, {"type": "Feature", "properties": {"population": 59}, "geometry": {"type": "Point", "coordinates": [37.591510000446945, 55.74402999999006]}}, {"type": "Feature", "properties": {"population": 56}, "geometry": {"type": "Point", "coordinates": [37.5927400006834, 55.741380000276756]}}, {"type": "Feature", "properties": {"population": 28}, "geometry": {"type": "Point", "coordinates": [37.592680000408926, 55.74417000006094]}}, {"type": "Feature", "properties": {"population": 14}, "geometry": {"type": "Point", "coordinates": [37.59309000048775, 55.74390000026907]}}, {"type": "Feature", "properties": {"population": 134}, "geometry": {"type": "Point", "coordinates": [37.578769999662775, 55.743129999965426]}}, {"type": "Feature", "properties": {"population": 90}, "geometry": {"type": "Point", "coordinates": [37.593489999622534, 55.74345000034098]}}, {"type": "Feature", "properties": {"population": 22}, "geometry": {"type": "Point", "coordinates": [37.591909999581674, 55.743979999409596]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.58580000037889, 55.73179000064463]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.58509999987184, 55.73157000002591]}}, {"type": "Feature", "properties": {"population": 179}, "geometry": {"type": "Point", "coordinates": [37.58695000024944, 55.73325000037232]}}, {"type": "Feature", "properties": {"population": 101}, "geometry": {"type": "Point", "coordinates": [37.5704799994712, 55.736939999451344]}}, {"type": "Feature", "properties": {"population": 151}, "geometry": {"type": "Point", "coordinates": [37.565010000500976, 55.734340000111494]}}, {"type": "Feature", "properties": {"population": 787}, "geometry": {"type": "Point", "coordinates": [37.57499000033827, 55.74218999983567]}}, {"type": "Feature", "properties": {"population": 188}, "geometry": {"type": "Point", "coordinates": [37.58246999951956, 55.736430000324496]}}, {"type": "Feature", "properties": {"population": 39}, "geometry": {"type": "Point", "coordinates": [37.577576056903446, 55.74352056630218]}}, {"type": "Feature", "properties": {"population": 22}, "geometry": {"type": "Point", "coordinates": [37.5768100005786, 55.742479999735686]}}, {"type": "Feature", "properties": {"population": 504}, "geometry": {"type": "Point", "coordinates": [37.57098000086004, 55.73880000012622]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.57289999976117, 55.74060999980438]}}, {"type": "Feature", "properties": {"population": 283}, "geometry": {"type": "Point", "coordinates": [37.576740000258475, 55.744720000244044]}}, {"type": "Feature", "properties": {"population": 31}, "geometry": {"type": "Point", "coordinates": [37.5953099998629, 55.741030000428395]}}, {"type": "Feature", "properties": {"population": 62}, "geometry": {"type": "Point", "coordinates": [37.589789999765685, 55.74684999970446]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.59597000018694, 55.74078000042089]}}, {"type": "Feature", "properties": {"population": 39}, "geometry": {"type": "Point", "coordinates": [37.59480000022496, 55.74123999980389]}}, {"type": "Feature", "properties": {"population": 64}, "geometry": {"type": "Point", "coordinates": [37.58887000004895, 55.746769999875035]}}, {"type": "Feature", "properties": {"population": 134}, "geometry": {"type": "Point", "coordinates": [37.59338000001769, 55.74727000041514]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.581620000123074, 55.74479999972598]}}, {"type": "Feature", "properties": {"population": 70}, "geometry": {"type": "Point", "coordinates": [37.58300000014732, 55.742459999829265]}}, {"type": "Feature", "properties": {"population": 414}, "geometry": {"type": "Point", "coordinates": [37.585219999522465, 55.74179000032561]}}, {"type": "Feature", "properties": {"population": 92}, "geometry": {"type": "Point", "coordinates": [37.58207000038484, 55.74122999978702]}}, {"type": "Feature", "properties": {"population": 98}, "geometry": {"type": "Point", "coordinates": [37.581499999574106, 55.74114000002551]}}, {"type": "Feature", "properties": {"population": 896}, "geometry": {"type": "Point", "coordinates": [37.58634000015407, 55.74052000013008]}}, {"type": "Feature", "properties": {"population": 28}, "geometry": {"type": "Point", "coordinates": [37.595570000153906, 55.74555999951748]}}, {"type": "Feature", "properties": {"population": 28}, "geometry": {"type": "Point", "coordinates": [37.594159999992364, 55.745899999860825]}}, {"type": "Feature", "properties": {"population": 31}, "geometry": {"type": "Point", "coordinates": [37.59565999966725, 55.744819999444424]}}, {"type": "Feature", "properties": {"population": 168}, "geometry": {"type": "Point", "coordinates": [37.58664000062807, 55.736720000040336]}}, {"type": "Feature", "properties": {"population": 67}, "geometry": {"type": "Point", "coordinates": [37.589529999474664, 55.73440999988987]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.590289710100336, 55.73267208069044]}}, {"type": "Feature", "properties": {"population": 73}, "geometry": {"type": "Point", "coordinates": [37.589190000614366, 55.73465000005572]}}, {"type": "Feature", "properties": {"population": 244}, "geometry": {"type": "Point", "coordinates": [37.589199999761824, 55.7351499996235]}}, {"type": "Feature", "properties": {"population": 199}, "geometry": {"type": "Point", "coordinates": [37.589740000435256, 55.73188000021856]}}, {"type": "Feature", "properties": {"population": 476}, "geometry": {"type": "Point", "coordinates": [37.58792000019496, 55.732649999443964]}}, {"type": "Feature", "properties": {"population": 31}, "geometry": {"type": "Point", "coordinates": [37.58876000044404, 55.7328299999827]}}, {"type": "Feature", "properties": {"population": 218}, "geometry": {"type": "Point", "coordinates": [37.57332999993149, 55.73697999985465]}}, {"type": "Feature", "properties": {"population": 118}, "geometry": {"type": "Point", "coordinates": [37.5730200003101, 55.73627000025656]}}, {"type": "Feature", "properties": {"population": 336}, "geometry": {"type": "Point", "coordinates": [37.57677999954309, 55.716750000446616]}}, {"type": "Feature", "properties": {"population": 179}, "geometry": {"type": "Point", "coordinates": [37.57491999911978, 55.716790000286984]}}, {"type": "Feature", "properties": {"population": 132}, "geometry": {"type": "Point", "coordinates": [37.57942999998685, 55.729890000218624]}}, {"type": "Feature", "properties": {"population": 210}, "geometry": {"type": "Point", "coordinates": [37.58000999994498, 55.72914999991396]}}, {"type": "Feature", "properties": {"population": 112}, "geometry": {"type": "Point", "coordinates": [37.56758999972628, 55.7255899994064]}}, {"type": "Feature", "properties": {"population": 174}, "geometry": {"type": "Point", "coordinates": [37.56875000054087, 55.7255599999655]}}, {"type": "Feature", "properties": {"population": 28}, "geometry": {"type": "Point", "coordinates": [37.59132999962351, 55.743199999655495]}}, {"type": "Feature", "properties": {"population": 202}, "geometry": {"type": "Point", "coordinates": [37.56860999990049, 55.72609000018541]}}, {"type": "Feature", "properties": {"population": 190}, "geometry": {"type": "Point", "coordinates": [37.56622000064602, 55.72556999944447]}}, {"type": "Feature", "properties": {"population": 168}, "geometry": {"type": "Point", "coordinates": [37.56382000044749, 55.724429999855595]}}, {"type": "Feature", "properties": {"population": 493}, "geometry": {"type": "Point", "coordinates": [37.56514000019733, 55.72493999995165]}}, {"type": "Feature", "properties": {"population": 210}, "geometry": {"type": "Point", "coordinates": [37.56670000014668, 55.72637999982826]}}, {"type": "Feature", "properties": {"population": 210}, "geometry": {"type": "Point", "coordinates": [37.567489999268794, 55.726099999528664]}}, {"type": "Feature", "properties": {"population": 179}, "geometry": {"type": "Point", "coordinates": [37.56351999997352, 55.7232499996026]}}, {"type": "Feature", "properties": {"population": 165}, "geometry": {"type": "Point", "coordinates": [37.56408999988593, 55.723730000097625]}}, {"type": "Feature", "properties": {"population": 213}, "geometry": {"type": "Point", "coordinates": [37.565010000500976, 55.723139999670046]}}, {"type": "Feature", "properties": {"population": 188}, "geometry": {"type": "Point", "coordinates": [37.56235000001154, 55.7233699997736]}}, {"type": "Feature", "properties": {"population": 255}, "geometry": {"type": "Point", "coordinates": [37.57291999985267, 55.72946000010132]}}, {"type": "Feature", "properties": {"population": 274}, "geometry": {"type": "Point", "coordinates": [37.565879999989065, 55.726669999846656]}}, {"type": "Feature", "properties": {"population": 213}, "geometry": {"type": "Point", "coordinates": [37.56369999989862, 55.72270000038273]}}, {"type": "Feature", "properties": {"population": 216}, "geometry": {"type": "Point", "coordinates": [37.59510000069892, 55.733190000087546]}}, {"type": "Feature", "properties": {"population": 246}, "geometry": {"type": "Point", "coordinates": [37.595699999850204, 55.73385999955001]}}, {"type": "Feature", "properties": {"population": 739}, "geometry": {"type": "Point", "coordinates": [37.5819499998359, 55.72360000054616]}}, {"type": "Feature", "properties": {"population": 146}, "geometry": {"type": "Point", "coordinates": [37.594690000620105, 55.73272999989828]}}, {"type": "Feature", "properties": {"population": 479}, "geometry": {"type": "Point", "coordinates": [37.58656000026213, 55.72760999996261]}}, {"type": "Feature", "properties": {"population": 367}, "geometry": {"type": "Point", "coordinates": [37.580789999919645, 55.72274000020085]}}, {"type": "Feature", "properties": {"population": 112}, "geometry": {"type": "Point", "coordinates": [37.592330000604576, 55.74228000020963]}}, {"type": "Feature", "properties": {"population": 386}, "geometry": {"type": "Point", "coordinates": [37.57983000001993, 55.71778000023359]}}, {"type": "Feature", "properties": {"population": 386}, "geometry": {"type": "Point", "coordinates": [37.585130000009066, 55.726359999765045]}}, {"type": "Feature", "properties": {"population": 39}, "geometry": {"type": "Point", "coordinates": [37.59174999974808, 55.743089999797164]}}, {"type": "Feature", "properties": {"population": 174}, "geometry": {"type": "Point", "coordinates": [37.586199999513696, 55.72248999940062]}}, {"type": "Feature", "properties": {"population": 182}, "geometry": {"type": "Point", "coordinates": [37.588080000028526, 55.72424000022966]}}, {"type": "Feature", "properties": {"population": 134}, "geometry": {"type": "Point", "coordinates": [37.58279000008505, 55.72014999951526]}}, {"type": "Feature", "properties": {"population": 202}, "geometry": {"type": "Point", "coordinates": [37.58540000034581, 55.727890000562915]}}, {"type": "Feature", "properties": {"population": 202}, "geometry": {"type": "Point", "coordinates": [37.59405999953494, 55.73200999951773]}}, {"type": "Feature", "properties": {"population": 619}, "geometry": {"type": "Point", "coordinates": [37.58725999987082, 55.72556999944447]}}, {"type": "Feature", "properties": {"population": 333}, "geometry": {"type": "Point", "coordinates": [37.587049999808556, 55.724469999925276]}}, {"type": "Feature", "properties": {"population": 238}, "geometry": {"type": "Point", "coordinates": [37.58133000059311, 55.71837000017711]}}, {"type": "Feature", "properties": {"population": 381}, "geometry": {"type": "Point", "coordinates": [37.579067823518805, 55.717121231293525]}}, {"type": "Feature", "properties": {"population": 218}, "geometry": {"type": "Point", "coordinates": [37.58694000020371, 55.72352000010108]}}, {"type": "Feature", "properties": {"population": 168}, "geometry": {"type": "Point", "coordinates": [37.59129000033889, 55.72985000013698]}}, {"type": "Feature", "properties": {"population": 244}, "geometry": {"type": "Point", "coordinates": [37.59176999983959, 55.729239999503896]}}, {"type": "Feature", "properties": {"population": 496}, "geometry": {"type": "Point", "coordinates": [37.58289999968989, 55.72077999988878]}}, {"type": "Feature", "properties": {"population": 342}, "geometry": {"type": "Point", "coordinates": [37.5737499991577, 55.7180200004283]}}, {"type": "Feature", "properties": {"population": 179}, "geometry": {"type": "Point", "coordinates": [37.57183000025661, 55.71858999978736]}}, {"type": "Feature", "properties": {"population": 336}, "geometry": {"type": "Point", "coordinates": [37.57235999998599, 55.7179899997256]}}, {"type": "Feature", "properties": {"population": 476}, "geometry": {"type": "Point", "coordinates": [37.57649000001315, 55.716130000213276]}}, {"type": "Feature", "properties": {"population": 344}, "geometry": {"type": "Point", "coordinates": [37.564779999448895, 55.72126999995544]}}, {"type": "Feature", "properties": {"population": 361}, "geometry": {"type": "Point", "coordinates": [37.567040000803644, 55.720579999457755]}}, {"type": "Feature", "properties": {"population": 353}, "geometry": {"type": "Point", "coordinates": [37.558019999967854, 55.72334000014487]}}, {"type": "Feature", "properties": {"population": 179}, "geometry": {"type": "Point", "coordinates": [37.57397000016408, 55.71724000047534]}}, {"type": "Feature", "properties": {"population": 507}, "geometry": {"type": "Point", "coordinates": [37.57916479036546, 55.71911193118599]}}, {"type": "Feature", "properties": {"population": 151}, "geometry": {"type": "Point", "coordinates": [37.58253450215028, 55.7204215732252]}}, {"type": "Feature", "properties": {"population": 518}, "geometry": {"type": "Point", "coordinates": [37.56166006243226, 55.72678737867651]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.58312663475462, 55.73880257475376]}}, {"type": "Feature", "properties": {"population": 73}, "geometry": {"type": "Point", "coordinates": [37.58454000000522, 55.7310399998359]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.5844399995478, 55.73122999975793]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.593207381549306, 55.74469886277317]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.598438443925254, 55.747119225213545]}}, {"type": "Feature", "properties": {"population": 17}, "geometry": {"type": "Point", "coordinates": [37.59849631339586, 55.74474486329139]}}, {"type": "Feature", "properties": {"population": 25}, "geometry": {"type": "Point", "coordinates": [37.57633034333602, 55.74324130634644]}}, {"type": "Feature", "properties": {"population": 92}, "geometry": {"type": "Point", "coordinates": [37.562740000897136, 55.725100000424426]}}, {"type": "Feature", "properties": {"population": 48}, "geometry": {"type": "Point", "coordinates": [37.59105332390591, 55.74706067309205]}}, {"type": "Feature", "properties": {"population": 50}, "geometry": {"type": "Point", "coordinates": [37.58944000085958, 55.7416799995266]}}, {"type": "Feature", "properties": {"population": 112}, "geometry": {"type": "Point", "coordinates": [37.58353873150135, 55.74068420736864]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.593846994608015, 55.74736872349261]}}, {"type": "Feature", "properties": {"population": 81}, "geometry": {"type": "Point", "coordinates": [37.58942811075854, 55.745661340536216]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.57896993410226, 55.74146146551324]}}, {"type": "Feature", "properties": {"population": 174}, "geometry": {"type": "Point", "coordinates": [37.56483899540687, 55.72832796498782]}}, {"type": "Feature", "properties": {"population": 126}, "geometry": {"type": "Point", "coordinates": [37.56659129860745, 55.728236634911575]}}, {"type": "Feature", "properties": {"population": 62}, "geometry": {"type": "Point", "coordinates": [37.58832884324365, 55.74212782320027]}}, {"type": "Feature", "properties": {"population": 202}, "geometry": {"type": "Point", "coordinates": [37.559615375573095, 55.724249460240756]}}, {"type": "Feature", "properties": {"population": 235}, "geometry": {"type": "Point", "coordinates": [37.559780752721906, 55.73049675440194]}}, {"type": "Feature", "properties": {"population": 14}, "geometry": {"type": "Point", "coordinates": [37.56565936387382, 55.72863760242961]}}, {"type": "Feature", "properties": {"population": 356}, "geometry": {"type": "Point", "coordinates": [37.55856387058354, 55.723929072233844]}}, {"type": "Feature", "properties": {"population": 176}, "geometry": {"type": "Point", "coordinates": [37.55877114785217, 55.724586971537995]}}, {"type": "Feature", "properties": {"population": 157}, "geometry": {"type": "Point", "coordinates": [37.57929314344994, 55.740198905152965]}}, {"type": "Feature", "properties": {"population": 118}, "geometry": {"type": "Point", "coordinates": [37.58003438920493, 55.739802281065806]}}, {"type": "Feature", "properties": {"population": 140}, "geometry": {"type": "Point", "coordinates": [37.578634110611375, 55.739459704587006]}}, {"type": "Feature", "properties": {"population": 188}, "geometry": {"type": "Point", "coordinates": [37.58074087644663, 55.739555321623115]}}, {"type": "Feature", "properties": {"population": 174}, "geometry": {"type": "Point", "coordinates": [37.58107719580753, 55.740712422722176]}}, {"type": "Feature", "properties": {"population": 370}, "geometry": {"type": "Point", "coordinates": [37.582421462646465, 55.741771343665015]}}, {"type": "Feature", "properties": {"population": 31}, "geometry": {"type": "Point", "coordinates": [37.57779192925275, 55.741947981337866]}}, {"type": "Feature", "properties": {"population": 252}, "geometry": {"type": "Point", "coordinates": [37.585322049935336, 55.732262281251685]}}, {"type": "Feature", "properties": {"population": 706}, "geometry": {"type": "Point", "coordinates": [37.58176608235789, 55.74277261937936]}}, {"type": "Feature", "properties": {"population": 196}, "geometry": {"type": "Point", "coordinates": [37.580578326295985, 55.73085556457483]}}, {"type": "Feature", "properties": {"population": 76}, "geometry": {"type": "Point", "coordinates": [37.59871146260136, 55.74245920743807]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.581357205173184, 55.73224369590712]}}, {"type": "Feature", "properties": {"population": 106}, "geometry": {"type": "Point", "coordinates": [37.6000011639733, 55.74200051089919]}}, {"type": "Feature", "properties": {"population": 109}, "geometry": {"type": "Point", "coordinates": [37.57370583258851, 55.73754942410143]}}, {"type": "Feature", "properties": {"population": 235}, "geometry": {"type": "Point", "coordinates": [37.570080892363514, 55.735573333319316]}}, {"type": "Feature", "properties": {"population": 56}, "geometry": {"type": "Point", "coordinates": [37.6012946670155, 55.73938630029646]}}, {"type": "Feature", "properties": {"population": 17}, "geometry": {"type": "Point", "coordinates": [37.60133561132784, 55.73978780617103]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.604854600654996, 55.74140744951615]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.60362157040104, 55.73870249185976]}}, {"type": "Feature", "properties": {"population": 1532}, "geometry": {"type": "Point", "coordinates": [37.58116541486006, 55.73779396163178]}}, {"type": "Feature", "properties": {"population": 48}, "geometry": {"type": "Point", "coordinates": [37.58727092607966, 55.743918318640105]}}, {"type": "Feature", "properties": {"population": 613}, "geometry": {"type": "Point", "coordinates": [37.57835544153215, 55.745170262110456]}}, {"type": "Feature", "properties": {"population": 50}, "geometry": {"type": "Point", "coordinates": [37.60233557098637, 55.74212782623436]}}, {"type": "Feature", "properties": {"population": 73}, "geometry": {"type": "Point", "coordinates": [37.60254469788623, 55.73935199923075]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.604420367623014, 55.74154117483834]}}, {"type": "Feature", "properties": {"population": 112}, "geometry": {"type": "Point", "coordinates": [37.57551719552735, 55.739642870826316]}}, {"type": "Feature", "properties": {"population": 31}, "geometry": {"type": "Point", "coordinates": [37.603809853691324, 55.74046809665499]}}, {"type": "Feature", "properties": {"population": 207}, "geometry": {"type": "Point", "coordinates": [37.58171145939871, 55.74524535193691]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.5999089797572, 55.73873832988037]}}, {"type": "Feature", "properties": {"population": 20}, "geometry": {"type": "Point", "coordinates": [37.600677943928595, 55.73893580277672]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.598593754553015, 55.73881885847293]}}, {"type": "Feature", "properties": {"population": 56}, "geometry": {"type": "Point", "coordinates": [37.597209471361445, 55.73903931131419]}}, {"type": "Feature", "properties": {"population": 17}, "geometry": {"type": "Point", "coordinates": [37.5980459798591, 55.73864995684755]}}, {"type": "Feature", "properties": {"population": 20}, "geometry": {"type": "Point", "coordinates": [37.600745383151896, 55.738275268663116]}}, {"type": "Feature", "properties": {"population": 20}, "geometry": {"type": "Point", "coordinates": [37.59712458056714, 55.7387594063534]}}, {"type": "Feature", "properties": {"population": 70}, "geometry": {"type": "Point", "coordinates": [37.5963168774474, 55.73917136880651]}}, {"type": "Feature", "properties": {"population": 182}, "geometry": {"type": "Point", "coordinates": [37.587326062875135, 55.73975585953376]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.59685403944459, 55.741833229595485]}}, {"type": "Feature", "properties": {"population": 73}, "geometry": {"type": "Point", "coordinates": [37.5970126612625, 55.738344936707335]}}, {"type": "Feature", "properties": {"population": 372}, "geometry": {"type": "Point", "coordinates": [37.599234241672505, 55.736719950982746]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.59303629650517, 55.7387312558375]}}, {"type": "Feature", "properties": {"population": 81}, "geometry": {"type": "Point", "coordinates": [37.59326198564387, 55.73855456314647]}}, {"type": "Feature", "properties": {"population": 81}, "geometry": {"type": "Point", "coordinates": [37.592282417742254, 55.738244188112276]}}, {"type": "Feature", "properties": {"population": 17}, "geometry": {"type": "Point", "coordinates": [37.59367259388216, 55.740043355065154]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.59594830317788, 55.742063266234325]}}, {"type": "Feature", "properties": {"population": 78}, "geometry": {"type": "Point", "coordinates": [37.59424521957008, 55.738333610437]}}, {"type": "Feature", "properties": {"population": 17}, "geometry": {"type": "Point", "coordinates": [37.59871858534325, 55.73643774085995]}}, {"type": "Feature", "properties": {"population": 28}, "geometry": {"type": "Point", "coordinates": [37.59534871276004, 55.7413403831436]}}, {"type": "Feature", "properties": {"population": 50}, "geometry": {"type": "Point", "coordinates": [37.596829448962, 55.74135550626061]}}, {"type": "Feature", "properties": {"population": 280}, "geometry": {"type": "Point", "coordinates": [37.58854802408816, 55.74080881293137]}}, {"type": "Feature", "properties": {"population": 56}, "geometry": {"type": "Point", "coordinates": [37.589052584427044, 55.73591535419716]}}, {"type": "Feature", "properties": {"population": 3}, "geometry": {"type": "Point", "coordinates": [37.58220040881464, 55.7360246631849]}}, {"type": "Feature", "properties": {"population": 56}, "geometry": {"type": "Point", "coordinates": [37.58945257008712, 55.73623186283162]}}, {"type": "Feature", "properties": {"population": 468}, "geometry": {"type": "Point", "coordinates": [37.577333589930184, 55.72573624458027]}}, {"type": "Feature", "properties": {"population": 151}, "geometry": {"type": "Point", "coordinates": [37.591343804932805, 55.739830568867454]}}, {"type": "Feature", "properties": {"population": 14}, "geometry": {"type": "Point", "coordinates": [37.60066364185091, 55.74489904204597]}}, {"type": "Feature", "properties": {"population": 67}, "geometry": {"type": "Point", "coordinates": [37.60446315707496, 55.74823716991497]}}, {"type": "Feature", "properties": {"population": 78}, "geometry": {"type": "Point", "coordinates": [37.56300966256904, 55.72547434156995]}}, {"type": "Feature", "properties": {"population": 115}, "geometry": {"type": "Point", "coordinates": [37.60138997018237, 55.74621158262322]}}, {"type": "Feature", "properties": {"population": 98}, "geometry": {"type": "Point", "coordinates": [37.578334258359426, 55.71966118859145]}}, {"type": "Feature", "properties": {"population": 34}, "geometry": {"type": "Point", "coordinates": [37.604013685920854, 55.74284738968614]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.600420642176694, 55.74103338907379]}}, {"type": "Feature", "properties": {"population": 39}, "geometry": {"type": "Point", "coordinates": [37.60146975495261, 55.741420449225615]}}, {"type": "Feature", "properties": {"population": 109}, "geometry": {"type": "Point", "coordinates": [37.6023995759504, 55.73840606644744]}}, {"type": "Feature", "properties": {"population": 73}, "geometry": {"type": "Point", "coordinates": [37.57334014370769, 55.741059791268576]}}, {"type": "Feature", "properties": {"population": 448}, "geometry": {"type": "Point", "coordinates": [37.59151692735606, 55.73320237585563]}}, {"type": "Feature", "properties": {"population": 59}, "geometry": {"type": "Point", "coordinates": [37.59374767956518, 55.74175492464334]}}, {"type": "Feature", "properties": {"population": 529}, "geometry": {"type": "Point", "coordinates": [37.57620049186178, 55.74392179552425]}}, {"type": "Feature", "properties": {"population": 67}, "geometry": {"type": "Point", "coordinates": [37.601069630053686, 55.740788823799356]}}, {"type": "Feature", "properties": {"population": 1669}, "geometry": {"type": "Point", "coordinates": [37.57680168128078, 55.718696158472476]}}, {"type": "Feature", "properties": {"population": 104}, "geometry": {"type": "Point", "coordinates": [37.605717162092446, 55.739816934470255]}}, {"type": "Feature", "properties": {"population": 36}, "geometry": {"type": "Point", "coordinates": [37.60614966317255, 55.74100037543277]}}, {"type": "Feature", "properties": {"population": 252}, "geometry": {"type": "Point", "coordinates": [37.57566178925384, 55.72713287195424]}}, {"type": "Feature", "properties": {"population": 143}, "geometry": {"type": "Point", "coordinates": [37.56129267932885, 55.728262734154896]}}, {"type": "Feature", "properties": {"population": 20}, "geometry": {"type": "Point", "coordinates": [37.59926800036091, 55.73882302864939]}}, {"type": "Feature", "properties": {"population": 11}, "geometry": {"type": "Point", "coordinates": [37.5999952755166, 55.73710735281038]}}, {"type": "Feature", "properties": {"population": 874}, "geometry": {"type": "Point", "coordinates": [37.56983013304185, 55.73005813800472]}}, {"type": "Feature", "properties": {"population": 269}, "geometry": {"type": "Point", "coordinates": [37.6034104573261, 55.7392862092907]}}, {"type": "Feature", "properties": {"population": 661}, "geometry": {"type": "Point", "coordinates": [37.57327523324185, 55.730070167257324]}}, {"type": "Feature", "properties": {"population": 235}, "geometry": {"type": "Point", "coordinates": [37.57225513515129, 55.72324315142983]}}, {"type": "Feature", "properties": {"population": 171}, "geometry": {"type": "Point", "coordinates": [37.58026070985927, 55.740284294069944]}}, {"type": "Feature", "properties": {"population": 31}, "geometry": {"type": "Point", "coordinates": [37.60172247529655, 55.74052719117095]}}, {"type": "Feature", "properties": {"population": 179}, "geometry": {"type": "Point", "coordinates": [37.58074097615965, 55.741383744896105]}}, {"type": "Feature", "properties": {"population": 53}, "geometry": {"type": "Point", "coordinates": [37.5880266913046, 55.73146521371372]}}, {"type": "Feature", "properties": {"population": 342}, "geometry": {"type": "Point", "coordinates": [37.558168093530604, 55.722677641305395]}}, {"type": "Feature", "properties": {"population": 123}, "geometry": {"type": "Point", "coordinates": [37.595634174001155, 55.74193942168111]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.583924027909816, 55.73441085971295]}}, {"type": "Feature", "properties": {"population": 84}, "geometry": {"type": "Point", "coordinates": [37.601447466852086, 55.7400485860804]}}, {"type": "Feature", "properties": {"population": 224}, "geometry": {"type": "Point", "coordinates": [37.58353425878954, 55.72368635616008]}}, {"type": "Feature", "properties": {"population": 168}, "geometry": {"type": "Point", "coordinates": [37.59117999983575, 55.73095000034873]}}, {"type": "Feature", "properties": {"population": 202}, "geometry": {"type": "Point", "coordinates": [37.57339709689667, 55.72147689441333]}}, {"type": "Feature", "properties": {"population": 456}, "geometry": {"type": "Point", "coordinates": [37.57030084935241, 55.72188030168223]}}, {"type": "Feature", "properties": {"population": 56}, "geometry": {"type": "Point", "coordinates": [37.601044298461034, 55.73663436208232]}}, {"type": "Feature", "properties": {"population": 375}, "geometry": {"type": "Point", "coordinates": [37.57107366460141, 55.73490088043044]}}, {"type": "Feature", "properties": {"population": 188}, "geometry": {"type": "Point", "coordinates": [37.60048472439584, 55.737545357465116]}}, {"type": "Feature", "properties": {"population": 129}, "geometry": {"type": "Point", "coordinates": [37.56934619981852, 55.73693629891123]}}, {"type": "Feature", "properties": {"population": 160}, "geometry": {"type": "Point", "coordinates": [37.580359508370854, 55.724134629646066]}}, {"type": "Feature", "properties": {"population": 78}, "geometry": {"type": "Point", "coordinates": [37.58580000037889, 55.742807033742544]}}, {"type": "Feature", "properties": {"population": 20}, "geometry": {"type": "Point", "coordinates": [37.57806650740416, 55.740972460669305]}}, {"type": "Feature", "properties": {"population": 101}, "geometry": {"type": "Point", "coordinates": [37.57453905325219, 55.725129482178666]}}, {"type": "Feature", "properties": {"population": 39}, "geometry": {"type": "Point", "coordinates": [37.59265472451176, 55.743935886105064]}}, {"type": "Feature", "properties": {"population": 76}, "geometry": {"type": "Point", "coordinates": [37.58355562432024, 55.73473202810591]}}, {"type": "Feature", "properties": {"population": 73}, "geometry": {"type": "Point", "coordinates": [37.58315156929198, 55.73499966616179]}}, {"type": "Feature", "properties": {"population": 246}, "geometry": {"type": "Point", "coordinates": [37.583793303273104, 55.73511341179253]}}, {"type": "Feature", "properties": {"population": 73}, "geometry": {"type": "Point", "coordinates": [37.582783164804034, 55.735247229995274]}}, {"type": "Feature", "properties": {"population": 20}, "geometry": {"type": "Point", "coordinates": [37.573241609300794, 55.73828904368557]}}, {"type": "Feature", "properties": {"population": 62}, "geometry": {"type": "Point", "coordinates": [37.57408135353006, 55.73683754185126]}}, {"type": "Feature", "properties": {"population": 227}, "geometry": {"type": "Point", "coordinates": [37.57466514437871, 55.72552769362785]}}, {"type": "Feature", "properties": {"population": 120}, "geometry": {"type": "Point", "coordinates": [37.593043331212115, 55.740312029295836]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.5747943715239, 55.72620500917192]}}, {"type": "Feature", "properties": {"population": 98}, "geometry": {"type": "Point", "coordinates": [37.57531278657941, 55.7265275704852]}}, {"type": "Feature", "properties": {"population": 64}, "geometry": {"type": "Point", "coordinates": [37.57400005869176, 55.725994543410316]}}, {"type": "Feature", "properties": {"population": 42}, "geometry": {"type": "Point", "coordinates": [37.57450577516244, 55.726379278945984]}}, {"type": "Feature", "properties": {"population": 50}, "geometry": {"type": "Point", "coordinates": [37.574218591850965, 55.72660320712338]}}, {"type": "Feature", "properties": {"population": 50}, "geometry": {"type": "Point", "coordinates": [37.57397045560995, 55.72677610368707]}}, {"type": "Feature", "properties": {"population": 101}, "geometry": {"type": "Point", "coordinates": [37.57404589882241, 55.7248941561887]}}, {"type": "Feature", "properties": {"population": 98}, "geometry": {"type": "Point", "coordinates": [37.57453173557583, 55.72700140202561]}}, {"type": "Feature", "properties": {"population": 216}, "geometry": {"type": "Point", "coordinates": [37.57297160896405, 55.72505071369713]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.57324885960343, 55.72553375068879]}}, {"type": "Feature", "properties": {"population": 143}, "geometry": {"type": "Point", "coordinates": [37.564653479825964, 55.733866271288704]}}, {"type": "Feature", "properties": {"population": 45}, "geometry": {"type": "Point", "coordinates": [37.573400457494174, 55.72569139076956]}}, {"type": "Feature", "properties": {"population": 28}, "geometry": {"type": "Point", "coordinates": [37.57355153076877, 55.725871435028935]}}, {"type": "Feature", "properties": {"population": 50}, "geometry": {"type": "Point", "coordinates": [37.60202879541856, 55.738791428653094]}}, {"type": "Feature", "properties": {"population": 92}, "geometry": {"type": "Point", "coordinates": [37.581499999574106, 55.73849999947106]}}, {"type": "Feature", "properties": {"population": 81}, "geometry": {"type": "Point", "coordinates": [37.57538795490743, 55.729768379144346]}}, {"type": "Feature", "properties": {"population": 49}, "geometry": {"type": "Point", "coordinates": [37.597993114004616, 55.74274532381261]}}, {"type": "Feature", "properties": {"population": 3}, "geometry": {"type": "Point", "coordinates": [37.60142984280456, 55.738735229803105]}}, {"type": "Feature", "properties": {"population": 94}, "geometry": {"type": "Point", "coordinates": [37.57203323780139, 55.72630278946064]}}, {"type": "Feature", "properties": {"population": 134}, "geometry": {"type": "Point", "coordinates": [37.58766370635278, 55.73940437652669]}}, {"type": "Feature", "properties": {"population": 792}, "geometry": {"type": "Point", "coordinates": [37.571678956626414, 55.72745397679524]}}, {"type": "Feature", "properties": {"population": 67}, "geometry": {"type": "Point", "coordinates": [37.577413253427856, 55.74103368490392]}}]};
+        const embeddedParksData = {"type": "FeatureCollection", "name": "parks", "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}}, "features": [{"type": "Feature", "properties": {"park_id": 18916, "source": "parks", "label": "Лукоморье", "attractiveness_score_weighted": 0.7975781348386173, "park_demand": 628.2518678769275, "area_m2": 315.3695898469494}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.597034642, 55.73796458], [37.596923835, 55.73770484900001], [37.596786561, 55.737765613], [37.597034642, 55.73796458]]]]}}, {"type": "Feature", "properties": {"park_id": 18941, "source": "parks", "label": "Объект озеленения Остоженка ул. 38", "attractiveness_score_weighted": 0.9743454138853251, "park_demand": 1090.8028337640515, "area_m2": 2681.3930756750246}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.59568554, 55.738821724], [37.595292225, 55.738175643], [37.594698775, 55.738368591999986], [37.595298344, 55.738957482], [37.59568554, 55.738821724]]]]}}, {"type": "Feature", "properties": {"park_id": 18942, "source": "parks", "label": "Объект озеленения Остоженка ул. д.41", "attractiveness_score_weighted": 1.4219112406149281, "park_demand": 1449.247674852171, "area_m2": 1624.165755267036}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.596203152, 55.738412891999985], [37.595974713, 55.738013832], [37.595469416, 55.738080766], [37.595752801, 55.738558206], [37.596203152, 55.738412891999985]]]]}}, {"type": "Feature", "properties": {"park_id": 18949, "source": "parks", "label": "Объект озеленения Гоголевский бульвар", "attractiveness_score_weighted": 2.437179017042847, "park_demand": 2075.0052578589616, "area_m2": 23959.023798890084}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.60158212, 55.744719116], [37.600161644, 55.74543083], [37.599346904, 55.746719148], [37.600217392, 55.750965312], [37.600754615, 55.750932727], [37.599901368, 55.74671894999999], [37.600560566, 55.745663725], [37.602065814, 55.745021167], [37.601507226, 55.745138408], [37.60158212, 55.744719116]], [[37.600340593, 55.750852201], [37.600563075, 55.750560032], [37.600639766, 55.750830526], [37.600340593, 55.750852201]]]]}}, {"type": "Feature", "properties": {"park_id": 19003, "source": "parks", "label": "Объект озеленения 2-я Фрунзенская улица", "attractiveness_score_weighted": 1.0039930122647531, "park_demand": 1230.2172479529268, "area_m2": 8949.723080763377}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.579350722, 55.724016294], [37.583259289, 55.722542696], [37.583263348, 55.722471401], [37.579350722, 55.724016294]]], [[[37.583507481, 55.72243558800001], [37.585471534, 55.721407619], [37.58333057, 55.722402439], [37.583507481, 55.72243558800001]]], [[[37.578871111, 55.724216223], [37.579266992, 55.72425399099998], [37.579211998, 55.724128076], [37.578871111, 55.724216223]]]]}}, {"type": "Feature", "properties": {"park_id": 19004, "source": "parks", "label": "Объект озеленения 3-я Фрунзенская улица", "attractiveness_score_weighted": 1.179256218481561, "park_demand": 1899.7863828821264, "area_m2": 13934.35806815304}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.580077671, 55.720130301], [37.576022795, 55.722083928], [37.580250545, 55.720253761999984], [37.580077671, 55.720130301]]], [[[37.575130536, 55.722269838999985], [37.572354195, 55.723659341], [37.575282323, 55.722379061], [37.575130536, 55.722269838999985]]], [[[37.580229109, 55.720066038], [37.582871129, 55.719118464], [37.582706654, 55.718985496], [37.580229109, 55.720066038]]]]}}, {"type": "Feature", "properties": {"park_id": 19005, "source": "parks", "label": "Объект озеленения Сивцев Вражек переулок, д.11", "attractiveness_score_weighted": 1.820301760102431, "park_demand": 2721.867368078107, "area_m2": 1928.4317718916159}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.595462343, 55.747497969], [37.596271274, 55.747497337], [37.596186216, 55.747174211], [37.595646734, 55.747093833], [37.595462343, 55.747497969]]]]}}, {"type": "Feature", "properties": {"park_id": 19006, "source": "parks", "label": "Сквер на Тимура Фрунзе ул.", "attractiveness_score_weighted": 0.8647449523447106, "park_demand": 693.5484444184444, "area_m2": 2608.1893424125387}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.592145359, 55.731721981], [37.592432686, 55.731895551], [37.593468075, 55.731593529999984], [37.593244038, 55.731335071], [37.592145359, 55.731721981]]]]}}, {"type": "Feature", "properties": {"park_id": 19007, "source": "parks", "label": "Объект озеленения 1-я Фрунзенская ул.", "attractiveness_score_weighted": 2.6479346874176657, "park_demand": 2683.8885667422132, "area_m2": 8219.531727611304}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.583483933, 55.72769811900001], [37.585857462, 55.72707581800001], [37.585608397, 55.7264792], [37.584654064, 55.726677656], [37.584878107, 55.726888936], [37.583217629, 55.727503916], [37.583483933, 55.72769811900001]]]]}}, {"type": "Feature", "properties": {"park_id": 19008, "source": "parks", "label": "Сквер у Министерства обороны", "attractiveness_score_weighted": 4.4165034457074865, "park_demand": 3215.1246426546036, "area_m2": 17611.15972880221}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.586801594, 55.726003013], [37.587114675, 55.726665815], [37.588436679, 55.726562683], [37.590048211, 55.72601731], [37.589630436, 55.725625505], [37.589070614, 55.72572096899999], [37.589520748, 55.725535280999985], [37.589284405, 55.725300187], [37.58885964, 55.72553100799998], [37.588640235, 55.725336299], [37.586801594, 55.726003013]], [[37.588742189, 55.725730713], [37.588771406, 55.725616623], [37.588864168, 55.725671214], [37.588742189, 55.725730713]]]]}}, {"type": "Feature", "properties": {"park_id": 19009, "source": "parks", "label": "Объект озеленения Остоженка ул. д.15, д.17", "attractiveness_score_weighted": 0.9647753046695051, "park_demand": 887.8306225646442, "area_m2": 1133.6269051503923}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.599357402, 55.7414173], [37.599394166, 55.74096575], [37.598805026, 55.741206244], [37.599357402, 55.7414173]]]]}}, {"type": "Feature", "properties": {"park_id": 19010, "source": "parks", "label": "Объект озеленения Остоженка ул. у Крымской эстакады", "attractiveness_score_weighted": 2.0039945892580135, "park_demand": 1395.903683540694, "area_m2": 7650.748335280177}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.594434908, 55.734965066], [37.595344061, 55.734717216], [37.594473844, 55.733648498], [37.593707738, 55.73382494], [37.594434908, 55.734965066]]]]}}, {"type": "Feature", "properties": {"park_id": 19011, "source": "parks", "label": "Объект озеленения Ростовская набережная, оз. участок над откосом от Бородинского моста до пешеходного моста", "attractiveness_score_weighted": 1.2209948292167991, "park_demand": 2105.345370637814, "area_m2": 8414.628938071406}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.575043392, 55.742948306], [37.575655943, 55.743514493], [37.575116441, 55.74290593700001], [37.575043392, 55.742948306]]], [[[37.575004161, 55.742889129], [37.57511245, 55.742898707], [37.574766208, 55.742618182], [37.575004161, 55.742889129]]], [[[37.574458726, 55.742240928], [37.574830966, 55.742586265], [37.574515673, 55.742222142], [37.574458726, 55.742240928]]], [[[37.574328924, 55.742086104999984], [37.574494746, 55.742198828], [37.574092794, 55.74173315], [37.574328924, 55.742086104999984]]], [[[37.573917629, 55.742384778], [37.575215604, 55.743930253], [37.576618703, 55.745285156], [37.574305837, 55.742282433], [37.573917629, 55.742384778]]]]}}, {"type": "Feature", "properties": {"park_id": 19012, "source": "parks", "label": "Сквер на 1-м Вражском (ЗАГС)", "attractiveness_score_weighted": 1.8851455577299865, "park_demand": 2119.6078195937857, "area_m2": 1783.1997376797517}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.572957031, 55.739937008], [37.573269629, 55.740407353], [37.574001258, 55.739703494], [37.572957031, 55.739937008]]]]}}, {"type": "Feature", "properties": {"park_id": 19013, "source": "parks", "label": "Объект озеленения Усачева ул.", "attractiveness_score_weighted": 3.3664523813757006, "park_demand": 3137.1738126611253, "area_m2": 10491.04281324883}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.563788004, 55.724736764], [37.560526636, 55.723279290000015], [37.560038704, 55.723602724], [37.563485216, 55.724974564], [37.563788004, 55.724736764]]]]}}, {"type": "Feature", "properties": {"park_id": 19014, "source": "parks", "label": "Объект озеленения Лужнецкий проезд", "attractiveness_score_weighted": 0.8812237771744134, "park_demand": 683.1017174155638, "area_m2": 3150.38046438702}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.559534723, 55.725860609999984], [37.560331973, 55.72676564], [37.560811352, 55.72633527], [37.559534723, 55.725860609999984]], [[37.560386462, 55.72660164], [37.560352518, 55.726435306], [37.560525338, 55.726546913], [37.560386462, 55.72660164]], [[37.560516475, 55.726261746], [37.560301752, 55.726283239], [37.560322751, 55.72624758300001], [37.560516475, 55.726261746]]]]}}, {"type": "Feature", "properties": {"park_id": 19015, "source": "parks", "label": "Объект озеленения Лужнецкий проезд - Учебный переулок (спирид.)", "attractiveness_score_weighted": 1.192645862564063, "park_demand": 730.8178087342648, "area_m2": 8583.650085535626}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.557113807, 55.724657396], [37.560009914, 55.726830445], [37.559254603, 55.725808949], [37.557113807, 55.724657396]], [[37.559322402, 55.726089334], [37.559010693, 55.726020568], [37.559141137, 55.725958718], [37.559322402, 55.726089334]]]]}}, {"type": "Feature", "properties": {"park_id": 19016, "source": "parks", "label": "Сквер у памятника «Молодым ученым»", "attractiveness_score_weighted": 1.2540811663324383, "park_demand": 1126.2170957941362, "area_m2": 1833.788565858175}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.560347763, 55.726926845], [37.560613383, 55.727138216], [37.561298851, 55.726548522], [37.560347763, 55.726926845]]]]}}, {"type": "Feature", "properties": {"park_id": 19017, "source": "parks", "label": "10-летия Октября ул. (сквер у метро Спортивная)", "attractiveness_score_weighted": 1.309108986206137, "park_demand": 1669.0017789984715, "area_m2": 3483.191330572577}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.565084675, 55.72475845], [37.565694378, 55.724249569], [37.565024547, 55.724050306], [37.564452618, 55.724487871], [37.565084675, 55.72475845]], [[37.565425212, 55.724439827], [37.565214435, 55.724294977], [37.565488305, 55.724399394], [37.565425212, 55.724439827]]], [[[37.563935396, 55.724913522], [37.564415277, 55.724825343], [37.56415827, 55.724732797], [37.563935396, 55.724913522]]]]}}, {"type": "Feature", "properties": {"park_id": 19019, "source": "parks", "label": "Объект озеленения Пречистенка ул. д.30", "attractiveness_score_weighted": 1.6443442320480905, "park_demand": 2786.2216888356015, "area_m2": 1459.089236127786}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.592558006, 55.741196305], [37.591853837, 55.74090691], [37.591512966, 55.741052126], [37.592314092, 55.741369967], [37.592558006, 55.741196305]]]]}}, {"type": "Feature", "properties": {"park_id": 19020, "source": "parks", "label": "Объект озеленения 1-й Тружеников пер. вл. 17А", "attractiveness_score_weighted": 0.987044614557437, "park_demand": 837.552772587128, "area_m2": 3814.2460138766264}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.57509128, 55.736825193], [37.57460333, 55.736060283], [37.573895973, 55.73619379], [37.57453128600001, 55.736933661], [37.57509128, 55.736825193]]]]}}, {"type": "Feature", "properties": {"park_id": 19022, "source": "parks", "label": "Объект озеленения Могильцевский Большой переулок, д. 7", "attractiveness_score_weighted": 1.326026895294756, "park_demand": 2712.3788947426065, "area_m2": 2096.3038482955817}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.589118752, 55.74361685], [37.590064617, 55.743658936], [37.590576278, 55.743576573], [37.590234466, 55.743326112], [37.589118752, 55.74361685]]]]}}, {"type": "Feature", "properties": {"park_id": 19023, "source": "parks", "label": "Сквер по Б.Левшинскому переулку, д.6, стр 1 у пам. Ф.Нансену", "attractiveness_score_weighted": 0.5876620145775622, "park_demand": 1234.2708901836986, "area_m2": 675.8347820717705}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.589233517, 55.74306616099999], [37.58906425, 55.742733584], [37.588866536, 55.742857302], [37.589233517, 55.74306616099999]]]]}}, {"type": "Feature", "properties": {"park_id": 19026, "source": "parks", "label": "Сквер Земледельческий переулок, д.20 - ул Плющиха д. 27, стр.2", "attractiveness_score_weighted": 0.5752497723583888, "park_demand": 1313.1722744697117, "area_m2": 537.6589085160396}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.578566038, 55.742310437], [37.579016996, 55.742412334], [37.578898501, 55.742143875], [37.578566038, 55.742310437]]]]}}, {"type": "Feature", "properties": {"park_id": 19179, "source": "parks", "label": "Бульварная зона вдоль ул. Хамовнический Вал на участке от Комсомольского проспекта до Лужнецкого проезда", "attractiveness_score_weighted": 6.37074286868929, "park_demand": 5347.855386839491, "area_m2": 54580.65231862909}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.56598051, 55.720701633], [37.56830245, 55.719999859], [37.570605326, 55.719299391], [37.570013797, 55.71892336], [37.565621439, 55.72025580699999], [37.56598051, 55.720701633]]], [[[37.563499513, 55.72141617], [37.565743332, 55.720774088], [37.565118251, 55.720185087], [37.56288416000001, 55.720959083], [37.563499513, 55.72141617]]], [[[37.561770266, 55.721859723], [37.563027344, 55.721457265], [37.562186643, 55.721053197], [37.561479791, 55.721249104], [37.561770266, 55.721859723]]], [[[37.559107863, 55.721978901], [37.560747085, 55.721609767], [37.561179716, 55.72207968], [37.561651632, 55.721871837], [37.561387269, 55.721265223], [37.559107863, 55.721978901]]], [[[37.555766661, 55.722873841], [37.556756915, 55.72414447300001], [37.557411621, 55.723940581], [37.556703154, 55.72307566100001], [37.559046539, 55.722228058], [37.558861152, 55.722037953], [37.555766661, 55.722873841]], [[37.556295788, 55.722817345], [37.556344347, 55.722754371], [37.556377628, 55.722794538], [37.556295788, 55.722817345]]]]}}, {"type": "Feature", "properties": {"park_id": 19315, "source": "parks", "label": "парк Новодевичьи пруды", "attractiveness_score_weighted": 6.147729493474656, "park_demand": 3366.997524417152, "area_m2": 77004.76847665117}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.558972736, 55.726790073], [37.557283472, 55.727181976], [37.558823138, 55.728317054], [37.560312298, 55.727426973], [37.558972736, 55.726790073]]], [[[37.550277637, 55.727506501], [37.553991242, 55.728656802], [37.556594447, 55.729948144], [37.55783221, 55.729113125], [37.557013187, 55.729002338], [37.551234602, 55.72606223800001], [37.550257664, 55.726740375], [37.550277637, 55.727506501]]]]}}, {"type": "Feature", "properties": {"park_id": 19316, "source": "parks", "label": "Сквер Девичье поле", "attractiveness_score_weighted": 15.658556767605623, "park_demand": 10286.22190295427, "area_m2": 83090.5312755485}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.576770765, 55.737386699], [37.581740512, 55.73713159], [37.582085402, 55.736893718], [37.573586711, 55.73306831], [37.574593014, 55.735130439], [37.576252365, 55.735067633], [37.576770765, 55.737386699]], [[37.578611992, 55.735560441], [37.578401131, 55.735427496], [37.578628582, 55.735432104], [37.578611992, 55.735560441]], [[37.577164525, 55.736283792], [37.576877924, 55.736188914], [37.57702948, 55.736150797], [37.577164525, 55.736283792]], [[37.5779707, 55.73707539999999], [37.5779459, 55.7369147], [37.5781011, 55.7369881], [37.5779707, 55.73707539999999]]]]}}, {"type": "Feature", "properties": {"park_id": 19395, "source": "parks", "label": "Парк Усадьба Трубецких в Хамовниках", "attractiveness_score_weighted": 15.658556767605623, "park_demand": 16884.060237192316, "area_m2": 66360.4018015417}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.575961132, 55.729143427], [37.575676819, 55.729406123], [37.576484404, 55.72970564700001], [37.576228647, 55.730005831], [37.578423397, 55.730792012], [37.579377156, 55.728241193], [37.579927217, 55.727956884], [37.577683851, 55.726527851], [37.576015148, 55.727627199], [37.574706916, 55.728619154], [37.575961132, 55.729143427]], [[37.575825794, 55.727895195], [37.577579891, 55.72676365], [37.578169032, 55.727036513], [37.577619258, 55.727465468], [37.578170767, 55.727904438999985], [37.577118146, 55.72850515400001], [37.575825794, 55.727895195]]]]}}, {"type": "Feature", "properties": {"park_id": 19543, "source": "parks", "label": "Объект озеленения Зубовская площадь (счетная палата)", "attractiveness_score_weighted": 0.691433657894036, "park_demand": 1166.823775039669, "area_m2": 1942.070523185869}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.585628275, 55.738819538], [37.585817639, 55.738562912], [37.584691221, 55.738054055], [37.585115226, 55.738707385], [37.585628275, 55.738819538]]]]}}, {"type": "Feature", "properties": {"park_id": 19639, "source": "parks", "label": "Храм Христа Спасителя прилегающая территория", "attractiveness_score_weighted": 9.102590465149808, "park_demand": 2857.3577662743137, "area_m2": 16341.582322505834}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.605447247, 55.743218958], [37.606271222, 55.74300638], [37.606253782, 55.742943079], [37.605447247, 55.743218958]]], [[[37.604472636, 55.743606997], [37.605443292, 55.743352901], [37.605356715, 55.743265306], [37.604472636, 55.743606997]]], [[[37.605844954, 55.743418307], [37.606289861, 55.743510463], [37.606583175, 55.743420104], [37.606353947, 55.743264446], [37.605844954, 55.743418307]]], [[[37.60687233, 55.743388193999984], [37.606728391, 55.742847692], [37.60647798, 55.742838169], [37.60631412, 55.74290649800001], [37.60687233, 55.743388193999984]]], [[[37.606136285, 55.74379024600001], [37.606569514, 55.743557573], [37.605729528, 55.743563209], [37.606136285, 55.74379024600001]]], [[[37.606169589, 55.745322397], [37.606596857, 55.74527088700001], [37.606505969, 55.745188167], [37.606169589, 55.745322397]]], [[[37.606682969, 55.745185578], [37.607352482, 55.745309193], [37.607187591, 55.74500493], [37.606682969, 55.745185578]]], [[[37.605596197, 55.745619993], [37.606334704, 55.745711896], [37.606126628, 55.745400363], [37.605596197, 55.745619993]]], [[[37.604999365, 55.745230864], [37.605479492, 55.745568953], [37.605992694, 55.74536395], [37.605414523, 55.74549108], [37.604999365, 55.745230864]]], [[[37.606639611, 55.745117429], [37.607195979, 55.744914818], [37.607306889, 55.74442767], [37.606823714, 55.74455472399998], [37.606639611, 55.745117429]]], [[[37.607329585, 55.744831903], [37.607588362, 55.744739136], [37.607583146, 55.744412817], [37.60743651, 55.744466521], [37.607329585, 55.744831903]], [[37.607480392, 55.74472462], [37.607454268, 55.744644279], [37.607510418, 55.744653971], [37.607480392, 55.74472462]]], [[[37.607963984, 55.744748548], [37.607695426, 55.744424895], [37.607661693, 55.74471715499999], [37.607963984, 55.744748548]]], [[[37.608415977, 55.74534509], [37.608002953, 55.744789913], [37.607411712, 55.74486836000001], [37.60749046, 55.745245756], [37.608415977, 55.74534509]]], [[[37.608174706, 55.745426782999985], [37.60768229, 55.745337111], [37.607286062, 55.745686917], [37.608174706, 55.745426782999985]]], [[[37.606424732, 55.745676707999976], [37.607009242, 55.745499643999985], [37.606807963, 55.745307434], [37.606240801, 55.745512486999985], [37.606424732, 55.745676707999976]], [[37.606642503, 55.74558397900001], [37.60681695, 55.745436495], [37.606871006, 55.745469324], [37.606642503, 55.74558397900001]]], [[[37.604787209, 55.745305014], [37.605855677, 55.746082162], [37.607284146, 55.74548063199998], [37.605991128, 55.745881136], [37.604787209, 55.745305014]]]]}}, {"type": "Feature", "properties": {"park_id": 19641, "source": "parks", "label": "Фрунзенская набережная", "attractiveness_score_weighted": 2.7581803707542543, "park_demand": 3135.592453824004, "area_m2": 16072.830414111533}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.588087597, 55.723962582], [37.588711056, 55.724704158], [37.588824893, 55.724669252], [37.588087597, 55.723962582]]], [[[37.587041108, 55.722937352], [37.587798013, 55.72393868], [37.587997204, 55.723868889], [37.587041108, 55.722937352]]], [[[37.585709383, 55.721673899], [37.586822714, 55.72290804], [37.586964995, 55.722859721], [37.585709383, 55.721673899]]], [[[37.5842598, 55.720737325], [37.584958858, 55.72137975399998], [37.58529082, 55.721258978], [37.584572746, 55.720603171], [37.5842598, 55.720737325]]], [[[37.583959301, 55.720038367], [37.584278299, 55.720512294], [37.584425302, 55.720455939], [37.583959301, 55.720038367]]], [[[37.582989464, 55.719251461], [37.583579765, 55.720102917], [37.583892743, 55.719984836], [37.582989464, 55.719251461]]], [[[37.580855308, 55.717664361], [37.582405102, 55.718954509], [37.582556848, 55.718898152], [37.580855308, 55.717664361]]], [[[37.58030442, 55.71747185], [37.580746004, 55.717589427], [37.580451396, 55.717404784], [37.58030442, 55.71747185]]], [[[37.579829291, 55.717193565], [37.580380085, 55.71734321799999], [37.580018949, 55.717113078], [37.579829291, 55.717193565]]], [[[37.579320836, 55.716859045], [37.579942938, 55.717072945], [37.579496279, 55.716789283], [37.579320836, 55.716859045]]], [[[37.577462858, 55.71560923499999], [37.579121438, 55.716816313], [37.579330018, 55.716706348], [37.577462858, 55.71560923499999]]]]}}, {"type": "Feature", "properties": {"park_id": 19685, "source": "parks", "label": "Озелененная территория Спортивного комплекса «Лужники»", "attractiveness_score_weighted": 15.658556767605623, "park_demand": 1627.140205608038, "area_m2": 1248406.879220924}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.54847641100001, 55.714268639], [37.544228456, 55.71759194800001], [37.543035215, 55.72000328499998], [37.542980197, 55.721760592], [37.543665746, 55.723646218], [37.54566173, 55.725799238], [37.547294578, 55.725809335], [37.549285697, 55.723858392], [37.553592124, 55.721461748], [37.554428212, 55.722018569], [37.563308847, 55.719442669], [37.563687904, 55.719067442], [37.560420147, 55.717354667], [37.564706036, 55.714861204], [37.562559847, 55.714037248], [37.561475553, 55.712516241], [37.559575822, 55.711381368], [37.557317424, 55.711489596], [37.55261173, 55.712402494], [37.54847641100001, 55.714268639]]]]}}, {"type": "Feature", "properties": {"park_id": 19751, "source": "parks", "label": "1-й Вражский", "attractiveness_score_weighted": 1.7642440442449832, "park_demand": 1964.7420009640846, "area_m2": 1513.2678492859789}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.573793003, 55.739869268], [37.572971714, 55.739960837], [37.573257542, 55.740456242], [37.573793003, 55.739869268]]]]}}, {"type": "Feature", "properties": {"park_id": 19765, "source": "parks", "label": "Плющиха ул., д. 42", "attractiveness_score_weighted": 0.7348633111452021, "park_demand": 1126.4617032943636, "area_m2": 1825.1426396442635}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.576030246, 55.739661302], [37.576799326, 55.740795957], [37.576306517, 55.739498896], [37.576030246, 55.739661302]]]]}}, {"type": "Feature", "properties": {"park_id": 19776, "source": "parks", "label": "Плющиха ул., д.42", "attractiveness_score_weighted": 0.7099406869429213, "park_demand": 1137.6699992900499, "area_m2": 1225.0599160507668}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.576294686, 55.739519497], [37.576257636, 55.739999022], [37.576729304, 55.740805042], [37.576294686, 55.739519497]]]]}}, {"type": "Feature", "properties": {"park_id": 20056, "source": "oopt", "label": "ООПТ регионального значения \"Памятник природы \"Ботанический сад имени П.И.Травникова\"", "attractiveness_score_weighted": 1.6680314383019144, "park_demand": 1223.5871481165934, "area_m2": 2626.1459703416313}, "geometry": {"type": "MultiPolygon", "coordinates": [[[[37.594678378522, 55.7337121762346], [37.5951825615936, 55.73360301775201], [37.5946920165905, 55.7329727487923], [37.594192539155, 55.733110952232394], [37.594678378522, 55.7337121762346]]]]}}]};
+        const use_compression = false;
+        
+        // Конфигурация карты
+        const mapSettings = {
+            center: [37.575698087, 55.73117334],
+            zoom: 13
+        };
+        
+        // Конфигурация провайдеров тайлов
+        const tileProviders = {"yandex": {"name": "yandex", "url": "https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x={x}&y={y}&z={z}&lang=ru_RU&projection=web_mercator&scale=4", "tileSize": 256, "minzoom": 0, "maxzoom": 18, "attribution": "Яндекс.Карты", "isOverlay": false, "defaultVisible": false, "defaultOpacity": 1.0, "paint": {"raster-saturation": -1}}};
+        
+                async function loadConfig() {
+            // Встроенные данные (избегаем CORS при открытии через file://)
+            mapConfig = {
+            "settings": {
+                        "center": [
+                                    37.575698087,
+                                    55.73117334
+                        ],
+                        "zoom": 13,
+                        "title": "Спрос модели · Хамовники",
+                        "tile_provider": "yandex"
+            },
+            "layers": {
+                        "population": {
+                                    "name": "population",
+                                    "source": "population",
+                                    "property_field": "population",
+                                    "colors": [
+                                                "#dbeafe",
+                                                "#60a5fa",
+                                                "#1d4ed8"
+                                    ],
+                                    "stats": {
+                                                "q05": 19.85000000000001,
+                                                "q95": 476.14999999999986,
+                                                "min": 3.0,
+                                                "max": 1669.0
+                                    },
+                                    "layer_type": "circle",
+                                    "opacity": 0.72,
+                                    "radius_range": [
+                                                3.0,
+                                                14.0
+                                    ],
+                                    "stroke_width": 0.0,
+                                    "stroke_color": null
+                        },
+                        "parks": {
+                                    "name": "parks",
+                                    "source": "parks",
+                                    "property_field": "park_demand",
+                                    "colors": [
+                                                "#ffe4e8",
+                                                "#fb7185",
+                                                "#e11d48"
+                                    ],
+                                    "stats": {
+                                                "q05": 690.9367626677242,
+                                                "q95": 6582.447015868186,
+                                                "min": 628.2518678769275,
+                                                "max": 16884.060237192316
+                                    },
+                                    "layer_type": "fill",
+                                    "opacity": 0.55,
+                                    "radius_range": null,
+                                    "stroke_width": 1.0,
+                                    "stroke_color": "#be123c"
+                        }
+            },
+            "components": {
+                        "legend": {
+                                    "enabled": true,
+                                    "layers": [
+                                                "population",
+                                                "parks"
+                                    ],
+                                    "position": "top-right",
+                                    "show_toggle": true,
+                                    "collapsed": false,
+                                    "layer_labels": {
+                                                "population": "Население (точки домов)",
+                                                "parks": "Спрос модели"
+                                    },
+                                    "layer_descriptions": {}
+                        },
+                        "popup": {
+                                    "enabled": true,
+                                    "fields": [
+                                                "label",
+                                                "park_demand"
+                                    ],
+                                    "field_labels": {
+                                                "label": "Имя",
+                                                "park_demand": "Спрос модели",
+                                                "population": "Жителей в точке"
+                                    },
+                                    "template": null,
+                                    "close_button": true,
+                                    "close_on_click": false,
+                                    "resizable": false,
+                                    "layers": null,
+                                    "fields_by_layer": {
+                                                "population": [
+                                                            "population"
+                                                ]
+                                    }
+                        },
+                        "search": {
+                                    "enabled": true,
+                                    "geocoder_url": null,
+                                    "geocoder_params": {},
+                                    "placeholder": "Название места…",
+                                    "autocomplete": true,
+                                    "position": "top-left",
+                                    "zoom_on_result": 16,
+                                    "search_mode": "geojson",
+                                    "search_fields": [
+                                                "label"
+                                    ],
+                                    "search_layers": [
+                                                "parks"
+                                    ],
+                                    "max_results": 5
+                        }
+            },
+            "comparison": null
+};
+            console.log('Конфигурация загружена:', mapConfig);
+        }
+        
+                // Оптимизация памяти для неактивных вкладок (RAM + GPU)
+        function initVisibilityOptimization() {
+            document.addEventListener('visibilitychange', async () => {
+                if (document.hidden) {
+                    // Вкладка неактивна - освобождаем RAM и останавливаем рендеринг
+                    if (map && layersLoaded) {
+                        // 1. Останавливаем рендеринг
+                        map.stop();
+                        
+                        // 2. Удаляем источники данных для освобождения RAM
+                        const sourcesToRemove = ['population', 'parks'];
+                        sourcesToRemove.forEach(sourceId => {
+                            if (map.getSource(sourceId)) {
+                                // Удаляем все слои, связанные с этим источником
+                                const style = map.getStyle();
+                                if (style && style.layers) {
+                                    style.layers
+                                        .filter(layer => layer.source === sourceId)
+                                        .forEach(layer => {
+                                            try {
+                                                if (map.getLayer(layer.id)) {
+                                                    map.removeLayer(layer.id);
+                                                }
+                                            } catch (e) {
+                                                // Слой уже удален или не существует
+                                            }
+                                        });
+                                }
+                                // Удаляем источник (освобождает RAM)
+                                try {
+                                    map.removeSource(sourceId);
+                                } catch (e) {
+                                    // Источник уже удален
+                                }
+                            }
+                        });
+                        
+                        // 3. Скрываем canvas для освобождения GPU памяти
+                        map.getCanvas().style.display = 'none';
+                        
+                        layersLoaded = false;
+                        console.log('Карта приостановлена: RAM и GPU освобождены (вкладка неактивна)');
+                    }
+                } else {
+                    // Вкладка активна - восстанавливаем данные и рендеринг
+                    if (map && !layersLoaded) {
+                        // 1. Показываем canvas
+                        map.getCanvas().style.display = 'block';
+                        
+                        // 2. Перезагружаем данные (восстанавливаем в RAM)
+                        await loadLayers();
+                        layersLoaded = true;
+                        
+                        // 3. Обновляем карту
+                        map.resize();
+                        map.triggerRepaint();
+                        
+                        console.log('Карта возобновлена: данные перезагружены (вкладка активна)');
+                    } else if (map && layersLoaded) {
+                        // Данные уже загружены, просто обновляем отображение
+                        map.getCanvas().style.display = 'block';
+                        map.resize();
+                        map.triggerRepaint();
+                    }
+                }
+            });
+        }
+        
+                // Оптимизированная функция для развертывания MULTIPOINT в отдельные точки
+        // Использует асинхронную обработку порциями для избежания блокировки UI
+        function explodeMultiPoint(geojson, callback) {
+            const features = [];
+            let processed = 0;
+            const total = geojson.features.length;
+            const chunkSize = 100; // Обрабатываем по 100 кластеров за раз
+            
+            function processChunk() {
+                const end = Math.min(processed + chunkSize, total);
+                
+                for (let i = processed; i < end; i++) {
+                    const feature = geojson.features[i];
+                    if (feature.geometry.type === 'MultiPoint') {
+                        // Разворачиваем MULTIPOINT в отдельные Point объекты
+                        feature.geometry.coordinates.forEach(coord => {
+                            features.push({
+                                type: 'Feature',
+                                geometry: {
+                                    type: 'Point',
+                                    coordinates: coord
+                                },
+                                properties: feature.properties
+                            });
+                        });
+                    } else {
+                        // Оставляем как есть для Point и других типов
+                        features.push(feature);
+                    }
+                }
+                
+                processed = end;
+                
+                if (processed < total) {
+                    // Продолжаем обработку в следующем кадре
+                    setTimeout(processChunk, 0);
+                } else {
+                    // Обработка завершена
+                    callback({
+                        type: 'FeatureCollection',
+                        features: features
+                    });
+                }
+            }
+            
+            // Начинаем обработку
+            processChunk();
+        }
+        
+                async function loadLayers() {
+
+                        // Встроенные данные population
+            const populationDataRaw = embeddedPopulationData;
+            
+            // Проверяем наличие MULTIPOINT и разворачиваем если необходимо
+            const populationHasMultiPoint = populationDataRaw && populationDataRaw.features && 
+                populationDataRaw.features.some(f => f.geometry && f.geometry.type === 'MultiPoint');
+            
+            const populationData = populationHasMultiPoint ? await new Promise((resolve) => {
+                explodeMultiPoint(populationDataRaw, resolve);
+            }) : populationDataRaw;
+            
+            map.addSource('population', {
+                type: 'geojson',
+                data: populationData
+            });
+            
+            // Слой population
+            const populationConfig = mapConfig.layers.population;
+            const populationMin = populationConfig.stats.q05;
+            const populationMax = populationConfig.stats.q95;
+            const populationColors = populationConfig.colors;
+            
+            // Создаем цветовую шкалу с промежуточными точками
+            const populationColorStops = [];
+            for (let i = 0; i < populationColors.length; i++) {
+                const stop = populationMin + (populationMax - populationMin) * (i / (populationColors.length - 1));
+                populationColorStops.push(stop, populationColors[i]);
+            }
+            
+            map.addLayer({
+                id: 'population-layer',
+                type: 'circle',
+                source: 'population',
+                paint: {
+                'circle-radius': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'population'],
+                    populationMin, 3.0,
+                    populationMax, 14.0
+                ],
+                'circle-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'population'],
+                    ...populationColorStops
+                ],
+                'circle-opacity': 0.72,
+                'circle-stroke-width': 0.0
+                }
+            });
+            
+            console.log('Слой population добавлен на map');
+
+                        // Встроенные данные parks
+            const parksDataRaw = embeddedParksData;
+            
+            // Проверяем наличие MULTIPOINT и разворачиваем если необходимо
+            const parksHasMultiPoint = parksDataRaw && parksDataRaw.features && 
+                parksDataRaw.features.some(f => f.geometry && f.geometry.type === 'MultiPoint');
+            
+            const parksData = parksHasMultiPoint ? await new Promise((resolve) => {
+                explodeMultiPoint(parksDataRaw, resolve);
+            }) : parksDataRaw;
+            
+            map.addSource('parks', {
+                type: 'geojson',
+                data: parksData
+            });
+            
+            // Слой parks
+            const parksConfig = mapConfig.layers.parks;
+            const parksMin = parksConfig.stats.q05;
+            const parksMax = parksConfig.stats.q95;
+            const parksColors = parksConfig.colors;
+            
+            // Создаем цветовую шкалу с промежуточными точками
+            const parksColorStops = [];
+            for (let i = 0; i < parksColors.length; i++) {
+                const stop = parksMin + (parksMax - parksMin) * (i / (parksColors.length - 1));
+                parksColorStops.push(stop, parksColors[i]);
+            }
+            
+            map.addLayer({
+                id: 'parks-layer',
+                type: 'fill',
+                source: 'parks',
+                paint: {
+                'fill-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'park_demand'],
+                    ...parksColorStops
+                ],
+                'fill-opacity': 0.55,
+                'fill-outline-color': "#be123c"
+                }
+            });
+            
+            console.log('Слой parks добавлен на map');
+        }
+        
+        
+        
+        
+        
+        // Запускаем инициализацию
+        initMap();
+    </script>
+</body>
+</html>
+
+
+
+
+
